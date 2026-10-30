@@ -2,15 +2,7 @@
 
 ## Local X4 Classic software candidate — 2026-10-30
 
-- Prepare opt-in Classic WiFi diagnostic development/release targets. Picker-exit
-  publication replaces a bounded numeric SD trace; no credentials or network
-  identifiers are captured. This is not a connectivity fix or physical SD/WiFi
-  verification; see troubleshooting for data-loss and USB export limitations.
-  After three-layer review corrections, the complete diagnostic host/filesystem/
-  production-consumer suite and all four ordinary/diagnostic Classic builds pass.
-  Image identity, opt-out and measured-slot fit are checked offline. The separate
-  ignored `dist/wifi-diagnostics/` delivery contains only the reviewed application,
-  manifest and notes; normal packages are unchanged. No findings remain deferred.
+- Restore the standard WiFi picker in public Classic builds; retain the Classic port and navigation fixes.
 - Correct Classic Apps/Games front-button row navigation across pages, retaining
   chooser/page controls and side navigation. Include displayed recent books in
   Classic Home's physical selection ring, with visible Continue focus and Confirm

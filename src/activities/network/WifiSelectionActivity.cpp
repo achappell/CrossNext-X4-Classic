@@ -23,7 +23,6 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/PluginEvents.h"
-#include "util/WifiDiagnostics.h"
 
 namespace fui = freeink::ui;
 
@@ -101,7 +100,7 @@ void WifiSelectionActivity::onPromptEvent(const fui::ActionEvent& event, void* u
       RenderLock lock(*self);
       WIFI_STORE.removeCredential(self->selectedSSID);
       if (self->selectedSSID == self->currentSSID) {
-        wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+        WiFi.disconnect();
         self->currentSSID.clear();
       }
       const auto network = find_if(self->networks.begin(), self->networks.end(),
@@ -125,7 +124,6 @@ void WifiSelectionActivity::onEnter() {
   // resume() re-reads the network afterwards rather than assuming, which is
   // exactly right for a screen that exists to change it.
   devmode::pause();
-  wifidiagnostics::startSession();
 
   // Load saved WiFi credentials - SD card operations need lock as we use SPI
   // for both
@@ -223,12 +221,6 @@ void WifiSelectionActivity::onExit() {
   // up the scan and task.
 
   LOG_DBG("WIFI", "Free heap at onExit end: %d bytes", ESP.getFreeHeap());
-#if defined(FREEINK_DEVICE_X4CLASSIC) && defined(CROSSNEXT_WIFI_DIAGNOSTICS) && CROSSNEXT_WIFI_DIAGNOSTICS
-  {
-    RenderLock lock(*this);
-    wifidiagnostics::stopAndPublish();
-  }
-#endif
 
   // Last, after scanDelete(). resume() no longer joins synchronously -- it asks
   // update() to do it on the next loop pass -- so this is no longer load-bearing
@@ -255,9 +247,9 @@ void WifiSelectionActivity::startWifiScan(const bool autoScan) {
 
   devmode::setRadioAllowed(true);
   wifiEnabled = true;
-  wifidiagnostics::record(wifidiagnostics::Kind::Mode, WiFi.mode(WIFI_STA));
+  WiFi.mode(WIFI_STA);
   if (purpose != WifiSelectionPurpose::Manage || WiFi.status() != WL_CONNECTED) {
-    wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+    WiFi.disconnect();
     currentSSID.clear();
     delay(100);
   }
@@ -516,7 +508,7 @@ void WifiSelectionActivity::handleAutoConnectFailure() {
   // land without the reason coming with it. The user never sees
   // CONNECTION_FAILED on this path; the network list shows it instead.
   autoConnectError = connectionError;
-  wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+  WiFi.disconnect();
 
   if (!networks.empty()) {
     if (tryNextSavedNetworkFromScan()) {
@@ -534,8 +526,7 @@ void WifiSelectionActivity::handleAutoConnectFailure() {
 
 void WifiSelectionActivity::showNetworkListFromAutoConnect() {
   LOG_DBG("WIFI", "User requested manual network list");
-  wifidiagnostics::finishAttempt(wifidiagnostics::Outcome::Cancelled);
-  wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+  WiFi.disconnect();
   autoConnecting = false;
   manualNetworkListRequested = true;
   // The line says why auto-connect GAVE UP; the user just cancelled it
@@ -558,10 +549,6 @@ void WifiSelectionActivity::showNetworkListFromAutoConnect() {
 void WifiSelectionActivity::attemptConnection() {
   state = autoConnecting ? WifiSelectionState::AUTO_CONNECTING : WifiSelectionState::CONNECTING;
   connectionStartTime = millis();
-  wifidiagnostics::startAttempt(autoConnecting,
-      autoConnecting ? (networks.empty() ? wifidiagnostics::Source::Remembered : wifidiagnostics::Source::Scanned) :
-      (selectedNetworkIndex < realNetworkCount ? wifidiagnostics::Source::Scanned : wifidiagnostics::Source::Manual),
-      autoConnecting ? AUTO_CONNECTION_TIMEOUT_MS : CONNECTION_TIMEOUT_MS);
   connectedIP.clear();
   connectionError.clear();
   // A manual attempt supersedes whatever auto-connect had to report; an
@@ -570,9 +557,8 @@ void WifiSelectionActivity::attemptConnection() {
   requestUpdate();
 
   WiFi.persistent(false);  // Credentials are managed by WifiCredentialStore; suppress SDK NVS auto-connect
-  wifidiagnostics::record(wifidiagnostics::Kind::Mode, WiFi.mode(WIFI_STA));
-  // Abort any in-progress SDK auto-connect and clear NVS-saved SSID.
-  wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect(true, true));
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true, true);  // Abort any in-progress SDK auto-connect and clear NVS-saved SSID
   delay(100);
 
   // Scan all channels so networks with multiple APs use the strongest matching
@@ -593,9 +579,9 @@ void WifiSelectionActivity::attemptConnection() {
   }
 
   if (selectedRequiresPassword && !enteredPassword.empty()) {
-    wifidiagnostics::record(wifidiagnostics::Kind::Begin, WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str()));
+    WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str());
   } else {
-    wifidiagnostics::record(wifidiagnostics::Kind::Begin, WiFi.begin(selectedSSID.c_str()));
+    WiFi.begin(selectedSSID.c_str());
   }
 }
 
@@ -605,10 +591,8 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   const wl_status_t status = WiFi.status();
-  wifidiagnostics::record(wifidiagnostics::Kind::Status, status);
 
   if (status == WL_CONNECTED) {
-    wifidiagnostics::finishAttempt(wifidiagnostics::Outcome::Connected);
     // Successfully connected
     IPAddress ip = WiFi.localIP();
     char ipStr[16];
@@ -678,7 +662,6 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
-    wifidiagnostics::finishAttempt(wifidiagnostics::Outcome::Failed);
     connectionError = tr(STR_ERROR_GENERAL_FAILURE);
     if (status == WL_NO_SSID_AVAIL) {
       connectionError = tr(STR_ERROR_NETWORK_NOT_FOUND);
@@ -695,8 +678,7 @@ void WifiSelectionActivity::checkConnectionStatus() {
   // Check for timeout
   const unsigned long timeoutMs = autoConnecting ? AUTO_CONNECTION_TIMEOUT_MS : CONNECTION_TIMEOUT_MS;
   if (millis() - connectionStartTime > timeoutMs) {
-    wifidiagnostics::finishAttempt(wifidiagnostics::Outcome::Timeout);
-    wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+    WiFi.disconnect();
     connectionError = tr(STR_ERROR_CONNECTION_TIMEOUT);
     if (autoConnecting) {
       handleAutoConnectFailure();
@@ -741,8 +723,7 @@ void WifiSelectionActivity::loop() {
   if (state == WifiSelectionState::CONNECTING || state == WifiSelectionState::AUTO_CONNECTING) {
     if (state == WifiSelectionState::AUTO_CONNECTING) {
       if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-        wifidiagnostics::finishAttempt(wifidiagnostics::Outcome::Cancelled);
-        wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+        WiFi.disconnect();
         onComplete(false);
         return;
       }
@@ -866,7 +847,7 @@ void WifiSelectionActivity::loop() {
         // User chose "Forget network" - forget the network
         WIFI_STORE.removeCredential(selectedSSID);
         if (selectedSSID == currentSSID) {
-          wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+          WiFi.disconnect();
           currentSSID.clear();
         }
         // Update the network list to reflect the change
@@ -1135,8 +1116,8 @@ void WifiSelectionActivity::onReferenceEvent(const fui::ActionEvent& event, void
       return;
     }
     WiFi.scanDelete();
-    wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
-    wifidiagnostics::record(wifidiagnostics::Kind::Mode, WiFi.mode(WIFI_OFF));
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
     self.wifiEnabled = WiFi.getMode() != WIFI_MODE_NULL;
     if (self.wifiEnabled) LOG_ERR("WIFI", "Could not switch the radio off");
     self.currentSSID.clear();
@@ -1173,7 +1154,7 @@ void WifiSelectionActivity::onReferenceEvent(const fui::ActionEvent& event, void
       self.forgetPromptSelection = 0;
       self.closeRouting();
     } else if (event.value == Disconnect) {
-      wifidiagnostics::record(wifidiagnostics::Kind::Disconnect, WiFi.disconnect());
+      WiFi.disconnect();
       self.currentSSID.clear();
       self.state = WifiSelectionState::NETWORK_LIST;
       self.closeRouting();
