@@ -8,3 +8,9 @@ mkdir -p "$BUILD_DIR"
   ../../freeink-sdk/libs/network/JsonSax/src/StreamingJsonParser.cpp ../../lib/JsonParser/ReleaseJsonParser.cpp \
   test.cpp -o "$BUILD_DIR/test_crossnext_ota"
 "$BUILD_DIR/test_crossnext_ota"
+for board in X4CLASSIC X4PRO; do
+  "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -DFREEINK_DEVICE_${board}=1 \
+    ../../src/network/FirmwareBoardTag.cpp test_board.cpp -o "$BUILD_DIR/test_board_$board"
+  "$BUILD_DIR/test_board_$board"
+done
+python3 test_package.py

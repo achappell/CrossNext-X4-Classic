@@ -163,10 +163,13 @@ void ToolsActivity::counterLoop() {
     int x = 0, y = 0;
     if (mappedInput.wasScreenTapped(x, y))
       queued = counterInput.push(Kind::Touch, x, y);
+    else if (const int step = sidebuttons::classic() ? sidebuttons::frontStep(mappedInput) : 0)
+      queued = counterInput.push(step > 0 ? Kind::FocusNext : Kind::FocusPrevious);
     else if (const int step = sidebuttons::shortStep(mappedInput))
       queued = counterInput.push(!model.confirm ? Kind::Add : step > 0 ? Kind::FocusNext : Kind::FocusPrevious);
     else if (mappedInput.wasReleased(MappedInputManager::Button::Confirm))
-      queued = counterInput.push(model.confirm ? Kind::Confirm : Kind::Add);
+      queued = counterInput.push(model.confirm || (sidebuttons::classic() && interactions.hasButtonFocus())
+                                     ? Kind::Confirm : Kind::Add);
   }
   if (!queued) LOG_ERR("TOOLS", "Counter input queue full");
   RenderLock lock(RenderLock::Mode::Try);
@@ -220,6 +223,8 @@ void ToolsActivity::loop() {
     return;
   }
   RenderLock lock(*this);
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (model.confirm) {
       action(toolsui::CancelReset);
@@ -243,8 +248,8 @@ void ToolsActivity::loop() {
     action(kind == toolsui::Kind::Counter ? toolsui::Add
            : kind == toolsui::Kind::Clock ? toolsui::Appearance
                                           : toolsui::Today);
-  if (mappedInput.wasReleased(MappedInputManager::Button::Left)) action(toolsui::Previous);
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right)) action(toolsui::Next);
+  if (!sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Left)) action(toolsui::Previous);
+  if (!sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Right)) action(toolsui::Next);
   if (ready && !model.confirm) {
     if (const int direction = sidebuttons::shortStep(mappedInput)) {
       if (kind == toolsui::Kind::Calendar) {
@@ -273,7 +278,7 @@ void ToolsActivity::loop() {
 }
 void ToolsActivity::render(RenderLock&&) {
   model.rotateRight = SETTINGS.rotationDirection != 0;
-  if (kind == toolsui::Kind::Clock) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && kind == toolsui::Kind::Clock) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);

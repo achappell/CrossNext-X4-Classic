@@ -33,10 +33,12 @@ class MenuInput {
     return true;
   }
   void clear() { first = count = 0; }
-  static int selection(int current, int bookCount, int rows, int steps) {
-    if (rows <= 0) return bookCount;
-    const int row = current >= bookCount && current < bookCount + rows ? current - bookCount : 0;
-    return bookCount + ((row + steps) % rows + rows) % rows;
+  static int selection(int current, int bookCount, int rows, int steps, bool includeBooks = false) {
+    const int base = includeBooks ? 0 : bookCount;
+    const int count = rows + (includeBooks ? bookCount : 0);
+    if (count <= 0) return base;
+    const int row = current >= base && current < base + count ? current - base : 0;
+    return base + ((row + steps) % count + count) % count;
   }
 
  private:

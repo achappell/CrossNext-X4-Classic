@@ -7,6 +7,7 @@
 
 #include "Shelf.h"
 #include "ShelfScreen.h"
+#include "components/SideButtonNavigation.h"
 #include "ui/Toybox.h"
 #include "ui/ToyboxFonts.h"
 #include "ui/ToyboxTheme.h"
@@ -70,7 +71,7 @@ void ShelfFolderActivity::onEnter() {
   toybox::ensureFonts(renderer);
   itemCount = rowsInList();
   selected = 0;
-  buttonCursorVisible = false;
+  buttonCursorVisible = sidebuttons::classic();
   // The page itself is built in render(), which is the only place that knows how
   // many rows fit.
   requestUpdate();
@@ -121,11 +122,48 @@ bool ShelfFolderActivity::showPage(const int page) {
   return true;
 }
 
+void ShelfFolderActivity::moveFrontSelection(int amount) {
+  const auto rowAction = choosing ? shelfui::ActionToggleShown : shelfui::ActionOpen;
+  const int direction = amount > 0 ? 1 : -1;
+  for (; amount != 0; amount -= direction) {
+    const int next = selected + direction;
+    if (buttonCursorVisible && next >= 0 && next < itemCount) {
+      selected = next;
+      interactions.setFocusedIndex(-1);
+      continue;
+    }
+    if (buttonCursorVisible) {
+      // Only the visible page is in the hit table. Seed its edge row before
+      // walking into chrome; ordinary row steps use the whole list above.
+      int edge = -1;
+      for (size_t n = 0; n < interactions.count(); ++n) {
+        const auto& entry = interactions.data()[n];
+        if (entry.action == rowAction && (edge < 0 || direction > 0)) edge = static_cast<int>(n);
+      }
+      interactions.setFocusedIndex(edge);
+    }
+    sidebuttons::focus(interactions, direction, *this);
+    const int focused = interactions.focusedIndex();
+    buttonCursorVisible = itemCount > 0 && focused >= 0 && focused < static_cast<int>(interactions.count()) &&
+                          interactions.data()[focused].action == rowAction;
+    if (buttonCursorVisible) {
+      selected = direction > 0 ? 0 : itemCount - 1;
+      interactions.setFocusedIndex(-1);
+    }
+  }
+}
+
 void ShelfFolderActivity::loop() {
   namespace fui = freeink::ui;
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("SHELF", "Navigation queue full");
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(), sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("SHELF", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
+  if (sidebuttons::classic() &&
+      (!interactionsReady || interactionPage != shelfui::pageFor(selected, rowsPerPage))) {
+    requestUpdate();
+    return;
+  }
 
   const auto swipe = mappedInput.wasSwipe();
   int touchX = 0, touchY = 0;
@@ -160,7 +198,7 @@ void ShelfFolderActivity::loop() {
   }
   sectionnav::Input::Event command;
   bool moved = false;
-  while (navigation.pop(command)) {
+  while (navigation.pop(command, sidebuttons::classic() ? 1 : 32767)) {
     using Kind = sectionnav::Input::Kind;
     if (command.kind == Kind::Back) {
       navigation.clear();
@@ -171,6 +209,12 @@ void ShelfFolderActivity::loop() {
       return;
     }
     if (command.kind == Kind::Confirm) {
+      if (sidebuttons::classic() && interactions.hasButtonFocus()) {
+        input.confirm = true;
+        input.touchReleased = true;
+        input.touchX = input.touchY = -1;
+        break;
+      }
       if (!buttonCursorVisible) continue;
       const int item = itemAtRow(selected);
       if (item >= 0) {
@@ -184,14 +228,34 @@ void ShelfFolderActivity::loop() {
       }
       continue;
     }
+    if (sidebuttons::classic() && command.kind == Kind::Focus) {
+      moveFrontSelection(command.amount);
+      moved = true;
+      if (interactionPage != shelfui::pageFor(selected, rowsPerPage)) break;
+      continue;
+    }
     if (!itemCount) continue;
+    if (sidebuttons::classic() && command.kind == Kind::Step) {
+      interactions.setFocusedIndex(-1);
+      buttonCursorVisible = true;
+      selected = (selected + command.amount % itemCount + itemCount) % itemCount;
+      moved = true;
+      if (interactionPage != shelfui::pageFor(selected, rowsPerPage)) break;
+      continue;
+    }
     if (command.kind == Kind::Section || command.kind == Kind::Step) {
+      if (sidebuttons::classic()) {
+        moved |= interactions.hasButtonFocus() || !buttonCursorVisible;
+        interactions.setFocusedIndex(-1);
+        buttonCursorVisible = true;
+      }
       const int target = std::clamp(shelfui::pageFor(selected, rowsPerPage) + command.amount, 0,
                                     shelfui::pageCountFor(itemCount, rowsPerPage) - 1);
       moved |= showPage(target);
+      if (sidebuttons::classic() && interactionPage != shelfui::pageFor(selected, rowsPerPage)) break;
     }
   }
-  if (moved) {
+  if (moved && !input.confirm) {
     requestUpdate();
     return;
   }
@@ -247,7 +311,10 @@ void ShelfFolderActivity::loop() {
     return;
   }
   if (event.action == shelfui::ActionGoToPage) {
-    showPage(event.value);
+    if (showPage(event.value) && sidebuttons::classic()) {
+      interactions.setFocusedIndex(-1);
+      buttonCursorVisible = true;
+    }
     return;
   }
 }
@@ -300,9 +367,19 @@ void ShelfFolderActivity::render(RenderLock&&) {
   model.page = page;
   model.pageCount = paging.pageCount;
   shelfui::buildMenu(screen, model);
+  interactionPage = page;
 
   interactionsReady = true;
   toybox::reportOverflow(interactions, self.title);
+  if (sidebuttons::classic() && interactions.hasButtonFocus()) {
+    const int focused = interactions.focusedIndex();
+    if (focused >= 0 && focused < static_cast<int>(interactions.count())) {
+      const auto& entry = interactions.data()[focused];
+      // The generic black focus outline is invisible on the black chooser header.
+      if (entry.action == shelfui::ActionChoose)
+        target.stroke(entry.rect.inset(fui::Insets{4, 4, 4, 4}), fui::Paint::solid(fui::Color::White), 2);
+    }
+  }
 
   // Only a board with no touch panel ever draws these (BaseTheme::drawButtonHints
   // returns immediately when gpio.hasTouch()), so they are the Sticky's copy of
@@ -310,6 +387,6 @@ void ShelfFolderActivity::render(RenderLock&&) {
   const auto labels =
       choosing ? mappedInput.mapLabels(tr(STR_DONE), tr(STR_UI_SHOW_HIDE_06C236), tr(STR_2048_UP), tr(STR_2048_DOWN))
                : mappedInput.mapLabels(tr(STR_QUEST_BACK), tr(STR_OPEN), tr(STR_2048_UP), tr(STR_2048_DOWN));
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

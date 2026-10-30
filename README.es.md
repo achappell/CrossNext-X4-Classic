@@ -9,7 +9,10 @@ sus accesos, los controles de lectura y tus fondos de pantalla.
 
 [![Apoyar en Ko-fi](site/assets/support-ko-fi.svg)](https://ko-fi.com/manuelx900)
 
-Esta entrega es exclusivamente para **X4 Pro** (ESP32-S3).
+La vía publicada para **X4 Pro** sigue separada de la compilación local para
+**X4 Classic** (ESP32-S3, 16 MB de flash, 8 MB de PSRAM). Classic cuenta con
+compilación y simulador por botones; no se ha validado el dispositivo físico
+ni un procedimiento de recuperación.
 CrossNext parte de **CrossPlay 1.14.2**, con base **CrossPoint 1.6.5**.
 Referencias adicionales: [CrossInk](https://github.com/uxjulia/CrossInk),
 [CrossDiTo](https://github.com/dito94/CrossDiTo) y
@@ -104,17 +107,22 @@ La sincronización opcional con **CrossPoint Sync** reúne el historial de tu cu
 
 ## Archivos para instalar
 
-El paquete `CrossNext-X4PRO-Firmware-v1.3.1.zip` contiene dos imágenes y sus sumas SHA-256:
+Los paquetes locales por modelo contienen las imágenes y sus sumas SHA-256:
 
 | Archivo | Uso |
 | --- | --- |
 | `CrossNext-X4PRO-Firmware-v1.3.1.bin` | Aplicación para X4 Pro; actualización compatible/OTA o dirección `0x10000`. |
 | `CrossNext-X4PRO-Firmware-v1.3.1-factory.bin` | Imagen completa para instalación/recuperación del X4 Pro, en `0x0`. |
+| `CrossNext-X4C-Firmware-v1.3.1.zip` | Paquete local de Classic: aplicación `CrossNext-X4C-Firmware-v1.3.1.bin` y fábrica `CrossNext-X4C-Firmware-v1.3.1-factory.bin`, con sumas SHA-256. |
 
 Usa el paquete que corresponda al modelo y conserva una copia de la microSD antes
-de actualizar. Los X4/X3 normales usan otro chip. Consulta
+de actualizar. Los antiguos X4/X3 con ESP32-C3 usan otro chip. Consulta
 [instalación y recuperación](docs/install.md) para la herramienta y los pasos.
-En **Ajustes → Dispositivo → Verificar actualizaciones** puedes buscar
+Classic solo utiliza actualización de la aplicación desde microSD compatible;
+la imagen de fábrica por USB exige comprobar por separado identidad, bloqueo USB,
+copia de seguridad y recuperación. Una compilación correcta no autoriza flashear
+ni demuestra que quepa en la tabla de particiones ya instalada.
+**Solo X4 Pro:** en **Ajustes → Dispositivo → Verificar actualizaciones** puedes buscar
 versiones nuevas en [GitHub Releases de CrossNext](https://github.com/manuelx900/CrossNext/releases).
 Se solicita confirmación antes de instalar la aplicación para X4 Pro. Cada Release
 debe incluir `CrossNext-X4PRO-OTA.bin` como archivo adjunto independiente; consulta
@@ -140,15 +148,29 @@ dispositivo. Consulta [el contenido de demostración](docs/simulator-showcase.md
 
 ## Compilar y contribuir
 
-Esta entrega compila y verifica únicamente X4 Pro (`x4pro` / `gh_release_x4pro`)
-y el simulador `simulator_x4_pro`. El código conserva otros entornos heredados,
-incluido `sticky`, que quedan fuera de esta entrega. No uses `default` para X4 Pro.
+Selecciona `x4pro` / `gh_release_x4pro` para Pro, o `x4c` / `gh_release_x4c`
+para Classic local. Los simuladores nativos son `simulator_x4_pro` y
+`simulator_x4_classic`; Classic no tiene entrada táctil, luz frontal ni tecla Home.
+Con `CROSSPOINT_SIM_DEVICE=x4c`, `scripts_local/sim-shot.sh` solo acepta
+Atrás, Confirmar, Izquierda, Derecha, Arriba, Abajo y Encendido.
+Los demás entornos heredados, incluido `sticky`, quedan fuera de esta entrega.
+No uses `default` para estos dispositivos S3.
 En el entorno de desarrollo configurado, ejecuta `./scripts_local/check.sh`
 desde tu propio árbol de trabajo. En Windows consulta la guía del simulador.
 Las automatizaciones heredadas de CrossPlay están limitadas a su repositorio original;
 las versiones de CrossNext se publican manualmente.
 Las compilaciones y pruebas del simulador no sustituyen las pruebas físicas de
 orientación, entrada, memoria y persistencia antes de publicar una versión.
+
+La validación final del 2026-10-30, después de las correcciones de revisión,
+cubre las 29 filas activas mediante teclas y estados reales de producción.
+Pasan las 32 suites nativas afectadas, Classic dispositivo/distribución local y
+los simuladores Classic/Pro. El ZIP se verifica contra los archivos actuales,
+los datos de arranque, las particiones generadas y sus hashes.
+Registro: `qa-artifacts/x4c-coverage.json`; resultados:
+`qa-artifacts/x4c-integration/final/verification-summary.json`. No acredita una
+instalación física ni autoriza publicar o flashear. El formateador no estaba
+disponible; no se declara una comprobación de formato superada.
 
 ## Licencias
 

@@ -1,19 +1,33 @@
 #pragma once
 
+#include <BoardConfig.h>
 #include <FreeInkUICore.h>
 
 #include "MappedInputManager.h"
 #include "activities/Activity.h"
 
 namespace sidebuttons {
+inline bool classic() { return BoardConfig::isX4Classic(); }
+inline int frontStep(const MappedInputManager& input) {
+  using Button = MappedInputManager::Button;
+  const int direction = input.wasReleased(Button::Right) ? 1 : input.wasReleased(Button::Left) ? -1 : 0;
+  return input.isNavDirectionSwapped() ? -direction : direction;
+}
 inline int shortStep(const MappedInputManager& input) {
   using Button = MappedInputManager::Button;
+  if (classic()) {
+    const int direction = input.wasReleased(Button::Down) ? 1 : input.wasReleased(Button::Up) ? -1 : 0;
+    return input.isNavDirectionSwapped() ? -direction : direction;
+  }
   return input.wasReleased(Button::NavNext) ? 1 : input.wasReleased(Button::NavPrevious) ? -1 : 0;
 }
 inline int longStep(const MappedInputManager& input) {
   using Button = MappedInputManager::Button;
-  if (input.wasLongPressed(Button::NavNext, 500)) return 1;
-  if (input.wasLongPressed(Button::NavPrevious, 500)) return -1;
+  const auto next = classic() ? Button::Down : Button::NavNext;
+  const auto previous = classic() ? Button::Up : Button::NavPrevious;
+  const int sign = classic() && input.isNavDirectionSwapped() ? -1 : 1;
+  if (input.wasLongPressed(next, 500)) return sign;
+  if (input.wasLongPressed(previous, 500)) return -sign;
   return 0;
 }
 inline int swipeStep(const MappedInputManager& input) {
@@ -55,7 +69,48 @@ inline bool pending(const MappedInputManager& input) {
 }
 
 template <typename Buffer>
+void focus(Buffer& buffer, int direction, Activity& owner) {
+  buffer.setExplicitCoordinateNavigation(true);
+  freeink::ui::InputSnapshot input{};
+  input.focusNext = direction > 0;
+  input.focusPrev = direction < 0;
+  const auto before = buffer.focusPosition();
+  for (int remaining = direction; remaining != 0; remaining += direction > 0 ? -1 : 1) buffer.route(input);
+  if (before != buffer.focusPosition()) owner.requestUpdate();
+}
+
+template <typename Buffer>
+freeink::ui::ActionEvent confirm(Buffer& buffer, Activity& owner) {
+  buffer.setExplicitCoordinateNavigation(classic());
+  freeink::ui::InputSnapshot input{};
+  input.confirm = true;
+  const auto before = buffer.focusPosition();
+  const auto event = buffer.route(input);
+  if (before != buffer.focusPosition()) owner.requestUpdate();
+  return event;
+}
+template <typename Buffer>
+bool cancelEditor(Buffer& buffer, const MappedInputManager& input, Activity& owner) {
+  if (!classic() || !input.wasReleased(MappedInputManager::Button::Back) || !buffer.leaveCoordinateEditor())
+    return false;
+  owner.requestUpdate();
+  return true;
+}
+
+template <typename Buffer>
+bool moveEditor(Buffer& buffer, const MappedInputManager& input, Activity& owner) {
+  if (!classic() || !buffer.coordinateEditing()) return false;
+  using Button = MappedInputManager::Button;
+  const int dx = input.wasReleased(Button::ScreenRight) ? 1 : input.wasReleased(Button::ScreenLeft) ? -1 : 0;
+  const int dy = input.wasReleased(Button::ScreenDown) ? 1 : input.wasReleased(Button::ScreenUp) ? -1 : 0;
+  if (!dx && !dy) return false;
+  if (buffer.moveCoordinateCursor(dx, dy)) owner.requestUpdate();
+  return true;
+}
+template <typename Buffer>
 bool poll(Buffer& buffer, const MappedInputManager& input, int& x, int& y, bool enabled = true) {
+  buffer.setExplicitCoordinateNavigation(classic());
+  enabled = enabled || classic();
   if (input.wasScreenTapped(x, y)) {
     buffer.setFocusedIndex(-1);
     if (input.wasPressed(MappedInputManager::Button::NavNext))
@@ -67,7 +122,8 @@ bool poll(Buffer& buffer, const MappedInputManager& input, int& x, int& y, bool 
   x = y = -1;
   if (!enabled || !pending(input) || !buffer.routable()) return false;
   freeink::ui::Rect rect;
-  if (input.wasReleased(MappedInputManager::Button::Confirm) && buffer.buttonFocusRect(rect)) {
+  const bool enteringEditor = classic() && buffer.coordinateFocused() && !buffer.coordinateEditing();
+  if (input.wasReleased(MappedInputManager::Button::Confirm) && !enteringEditor && buffer.buttonFocusRect(rect)) {
     x = rect.x + rect.width / 2;
     y = rect.y + rect.height / 2;
   }
@@ -86,16 +142,19 @@ inline void append(const MappedInputManager& input, freeink::ui::InputSnapshot& 
     return;
   }
   if (pending(input)) snapshot.touchReleased = false;
-  snapshot.focusNext = input.wasReleased(Button::NavNext);
-  snapshot.focusPrev = input.wasReleased(Button::NavPrevious);
+  const int front = classic() ? frontStep(input) : 0;
+  const int direction = front ? front : shortStep(input);
+  snapshot.focusNext = direction > 0;
+  snapshot.focusPrev = direction < 0;
   snapshot.next = false;
   snapshot.prev = false;
-  snapshot.confirm = input.wasReleased(Button::Confirm);
+  snapshot.confirm = snapshot.confirm || input.wasReleased(Button::Confirm);
 }
 
 template <typename Buffer>
 freeink::ui::ActionEvent route(Buffer& buffer, freeink::ui::InputSnapshot snapshot, const MappedInputManager& input,
                                Activity& owner, bool enabled = true) {
+  enabled = enabled || classic();
   int touchX = 0, touchY = 0;
   const bool touch = input.wasScreenTapped(touchX, touchY);
   if (enabled && !touch && input.wasReleased(MappedInputManager::Button::Confirm) && buffer.hasButtonFocus()) {

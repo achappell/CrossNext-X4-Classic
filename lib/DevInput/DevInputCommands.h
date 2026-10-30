@@ -25,8 +25,9 @@ bool isCommand(const char* cmd);
 
 // Parses `cmd` and schedules it. `reply` always receives one NUL-terminated
 // line with no trailing newline: "OK ..." when scheduled, "ERR ..." when the
-// arguments are wrong or an event of the same kind is still playing. Returns
-// true only for OK.
+// arguments are wrong, the board has no touch for TAP/LONG/SWIPE, or an event
+// of the same kind is still playing. BTN remains available on no-touch boards.
+// Leading whitespace is normalized here for both transports. Returns true only for OK.
 bool runCommand(const char* cmd, char* reply, size_t replyLen);
 
 }  // namespace devinput

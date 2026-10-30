@@ -254,7 +254,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m) {
     legend(s, g.legend, m.seat);
   copy(s, g.prompt,
        m.review ? (m.game.outcome == c4::Outcome::Draw ? tr(STR_C4_DRAW_DETAIL) : tr(STR_C4_WIN_LINE))
-                : tr(STR_C4_DROP_PROMPT),
+                : (s.device().hasTouch ? tr(STR_C4_DROP_PROMPT) : tr(STR_BUTTON_DROP_COLUMN)),
        4, 2);
   if (m.review) {
     dashboard::button(s, g.again, tr(STR_C4_AGAIN), ActionAgain, 0, true, nullptr, 1);
@@ -337,7 +337,8 @@ void buildHowTo(toybox::Screen& s, const HowToModel& m) {
                                        StrId::STR_C4_FULL_COLUMNS};
   static constexpr StrId bodies[] = {StrId::STR_C4_COLUMN_DETAIL, StrId::STR_C4_FOUR_DETAIL, StrId::STR_C4_FULL_DETAIL};
   title(s, rect(a.x, a.y + 32, a.width, 48), I18N.get(headings[page]), 2);
-  copy(s, rect(a.x + 8, a.y + 86, a.width - 16, wide ? 44 : 62), I18N.get(bodies[page]), 4, 3);
+  const char* detail = !s.device().hasTouch && page == 0 ? tr(STR_BUTTON_C4_COLUMN) : I18N.get(bodies[page]);
+  copy(s, rect(a.x + 8, a.y + 86, a.width - 16, wide ? 44 : 62), detail, 4, 3);
   auto room = rect(a.x, a.y + (wide ? 138 : 160), a.width, a.height - (wide ? 138 : 160));
   if (page == 1) {
     const int gap = 8, h = (room.height - 60 - 2 * gap) / 3;

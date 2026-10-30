@@ -218,6 +218,13 @@ void SolitaireActivity::routeButton(const int button) {
 }
 
 void SolitaireActivity::loop() {
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) && selectedPile >= 0) {
+    selectedPile = -1;
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (view == View::Menu) {
       shelf::leave(renderer, mappedInput);
@@ -356,7 +363,7 @@ void SolitaireActivity::loop() {
 }
 
 void SolitaireActivity::render(RenderLock&&) {
-  if (view == View::Settings || view == View::Setup) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && (view == View::Settings || view == View::Setup)) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   fui::GfxRendererTarget target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);
@@ -386,7 +393,7 @@ void SolitaireActivity::render(RenderLock&&) {
   } else if (view == View::Settings) {
     ui::buildSettings(screen, draft, prefsSaveFailed);
   } else if (view == View::Help) {
-    ui::buildHelp(screen, helpPage);
+    ui::buildHelp(screen, helpPage, sidebuttons::classic());
   } else if (view == View::Board) {
     ui::BoardModel model;
     model.showMoves = options.showMoves;
@@ -395,6 +402,7 @@ void SolitaireActivity::render(RenderLock&&) {
     model.selectedCard = selectedCard;
     model.won = game.won();
     ui::buildBoard(screen, model, layout);
+    if (sidebuttons::classic()) interactions.coordinateAction(ui::ActionPile);
   } else if (view == View::Won) {
     ui::WinModel model;
     model.moves = game.moveCount();
@@ -418,7 +426,7 @@ void SolitaireActivity::render(RenderLock&&) {
   toybox::reportOverflow(interactions, "Solitaire", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   // A win asked for the full blink; every other paint is the fast refresh.
   renderer.displayBuffer(flashOnNextPaint ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
   flashOnNextPaint = false;

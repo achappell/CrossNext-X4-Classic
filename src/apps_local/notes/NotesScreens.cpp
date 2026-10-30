@@ -308,9 +308,9 @@ void deckRows(toybox::Screen& screen, const DeckModel& model, const fui::Rect& b
     dashboard::frame(screen, r, 2);
     readingui::note(screen, fui::makeRect(r.x + 14, r.y + (r.height - 56) / 2, 50, 56));
     readingui::text(screen, fui::makeRect(r.x + 82, r.y + 7, r.width - 126 - (item.asleep ? 40 : 0), 44), item.title,
-                    readingui::kReadingFont, 1);
-    readingui::text(screen, fui::makeRect(r.x + 82, r.bottom() - 36, r.width - 126 - (item.asleep ? 40 : 0), 30),
-                    item.preview ? item.preview : "", 4, 1);
+                    readingui::kReadingFont, 2);
+    const auto previewBox = fui::makeRect(r.x + 82, r.bottom() - 36, r.width - 126 - (item.asleep ? 40 : 0), 30);
+    fittedLine(screen, previewBox, item.preview ? item.preview : "", fui::TextAlign::Left, 4);
     if (item.asleep)
       compactart::draw(screen, fui::makeRect(r.right() - 76, r.y + (r.height - 32) / 2, 32, 32), compactart::ListMoon);
     dashboard::chevron(screen.target(), fui::makeRect(r.right() - 34, r.y, 28, r.height));
@@ -952,6 +952,10 @@ void buildMenu(toybox::Screen& screen, const MenuModel& model) {
       dashboard::chevron(screen.target(), fui::makeRect(row.right() - 36, row.y, 26, row.height));
       dashboard::hit(screen, row, actions[n]);
     }
+    if (model.classic)
+      dashboard::button(screen,
+                        fui::makeRect(body.x, body.bottom() - 132, wide ? hero.width : body.width, 60),
+                        tr(STR_UI_TYPE_ON_YOUR_PHONE_5FE5FB), ActionUsePhone);
     dashboard::button(screen, fui::makeRect(body.x, body.bottom() - 60, wide ? hero.width : body.width, 60),
                       tr(STR_TODO_BACK_LIST), ActionDismiss);
     return;
@@ -961,7 +965,8 @@ void buildMenu(toybox::Screen& screen, const MenuModel& model) {
   readingui::caps(screen, fui::makeRect(b.x + 8, b.y, b.width - 16, 44), model.title, 0, 2);
   const int h = wide ? 64 : 88;
   const int sleepH = wide ? 104 : 144, gap = 12;
-  const int stackH = h * 2 + sleepH + gap * 2;
+  const int phoneH = wide ? 48 : 64;
+  const int stackH = h * 2 + sleepH + gap * 2 + (model.classic ? phoneH + gap : 0);
   const int top = b.y + 52 + std::max(0, (b.height - 52 - stackH) / 2);
   const auto rename = fui::makeRect(b.x, top, b.width, h);
   const auto sleep = fui::makeRect(b.x, rename.bottom() + gap, b.width, sleepH);
@@ -987,6 +992,9 @@ void buildMenu(toybox::Screen& screen, const MenuModel& model) {
                   tr(STR_UI_DELETE_NOTE_12BEF2), 1);
   dashboard::chevron(screen.target(), fui::makeRect(remove.right() - 34, remove.y, 28, remove.height));
   dashboard::hit(screen, remove, ActionDelete);
+  if (model.classic)
+    dashboard::button(screen, fui::makeRect(b.x, remove.bottom() + gap, b.width, phoneH),
+                      tr(STR_UI_TYPE_ON_YOUR_PHONE_5FE5FB), ActionUsePhone);
 }
 
 }  // namespace notesui

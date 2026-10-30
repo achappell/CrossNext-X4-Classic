@@ -40,18 +40,6 @@ fui::TextStyle textStyle(const fui::FontId font, const fui::TextAlign align,
   return style;
 }
 
-// A SLOT IS NOT A CUT, and passing a mismatched pair is silent. The slot
-// decides how big the ink actually is; the CutMetrics only decide where it is
-// centred. This app binds the button cut to SMALL, the display cut to BODY and
-// the huge cut to TITLE, so the metrics are derived here rather than passed:
-// handing kUiCut alongside the body slot centred 38px of ink as though it were
-// 25 and ran one line straight through the next.
-const toybox::CutMetrics& cutFor(const fui::FontId slot) {
-  if (slot == toybox::kDisplayFont) return toybox::kHugeCut;
-  if (slot == toybox::kBodyFont) return toybox::kDisplayCut;
-  return toybox::kButtonCut;
-}
-
 void caps(toybox::Screen& screen, const fui::Rect& box, const char* text, const fui::FontId font,
           const fui::TextAlign align, const fui::Color colour = fui::Color::Black) {
   screen.target().text(toybox::inkCentred(screen.target(), box, textStyle(font, align, colour)), text,

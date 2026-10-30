@@ -355,9 +355,13 @@ fui::Rect buildBoardChrome(toybox::Screen& s, const BoardModel& m, Layout* out) 
   const bool primary = fireAction != fui::NO_ACTION;
   const bool fireInverse = s.frame().buttonSelected(fireAction, 0, primary);
   dashboard::button(s, fireButton, "", fireAction, 0, primary, nullptr, 0);
+  // Arming Fire must not replace the coordinate target under the cursor.
+  if (m.classicControls && !m.ownFleet && !m.gameOver && fireAction == fui::NO_ACTION)
+    s.frame().hit(fireButton, ActionFire, 0, fui::InputDefault, fui::StateDisabled);
   pixelui::copyCaps(feedback, sizeof(feedback), m.ownFleet ? tr(STR_NAVAL_READ_ONLY) : m.status);
   fittext::draw(s.target(), fireButton.inset({2, 6, 2, 6}), feedback, 0, 2, fui::TextAlign::Center,
                 fireInverse ? fui::Color::White : fui::Color::Black);
+  if (m.classicControls && !m.ownFleet && !m.gameOver) s.frame().navigationGrid(target, bship::kSize, bship::kSize);
   return m.ownFleet ? fui::Rect{} : target;
 }
 
@@ -369,13 +373,15 @@ void buildResult(toybox::Screen& s, const BoardModel& m) {
                     won ? mysteryart::NavalReady : mysteryart::NavalSunk, ActionPlayAgain, ActionResultReview,
                     ActionResultMenu);
 }
-void buildHowTo(toybox::Screen& s, int) {
+void buildHowTo(toybox::Screen& s, int, bool classicControls) {
   const auto b = begin(s);
   const bool wide = b.width > b.height;
   const int textW = b.width;
   const int row = wide ? 98 : 126;
   const StrId heads[] = {StrId::STR_NAVAL_PLACE, StrId::STR_NAVAL_PREPARE, StrId::STR_NAVAL_AIM};
-  const StrId copy[] = {StrId::STR_NAVAL_HELP1, StrId::STR_NAVAL_HELP2, StrId::STR_NAVAL_HELP3};
+  const StrId copy[] = {classicControls ? StrId::STR_BUTTON_BSHIP_PLACE_HELP : StrId::STR_NAVAL_HELP1,
+                        StrId::STR_NAVAL_HELP2,
+                        classicControls ? StrId::STR_BUTTON_BSHIP_FIRE_HELP : StrId::STR_NAVAL_HELP3};
   const fui::BitmapRef* arts[] = {&mysteryart::NavalRotate, &mysteryart::NavalReady, &mysteryart::NavalAim};
   for (int n = 0; n < 3; ++n) {
     const auto r = fui::makeRect(b.x, b.y + n * row, textW, row - 8);

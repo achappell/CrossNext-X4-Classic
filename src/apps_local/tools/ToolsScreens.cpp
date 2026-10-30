@@ -105,8 +105,11 @@ void calendar(toybox::Screen& s, const Model& m, Work& w, fui::Rect body) {
   s.frame().navigationGrid(fui::makeRect(grid.x, dayTop, grid.width, grid.bottom() - dayTop), 7, rows - 1);
   const auto selected = readingstats::dateFromDay(m.selected);
   char date[128];
-  std::snprintf(date, sizeof(date), tr(STR_TOOLS_SELECTED_DATE), I18N.get(weekdays[readingstats::weekday(m.selected)]),
-                selected.day, I18N.get(months[selected.month - 1]));
+  if (!m.validTime && m.selected == 0)
+    std::snprintf(date, sizeof(date), "%s", tr(STR_CLOCK_MANUAL));
+  else
+    std::snprintf(date, sizeof(date), tr(STR_TOOLS_SELECTED_DATE),
+                  I18N.get(weekdays[readingstats::weekday(m.selected)]), selected.day, I18N.get(months[selected.month - 1]));
   const int y = grid.bottom() + gap, half = (body.width - gap) / 2;
   if (wide) {
     const int side = body.width * 22 / 100;
@@ -162,27 +165,31 @@ void clock(toybox::Screen& s, const Model& m, Work& w, fui::Rect body) {
       info = fui::makeRect(content.x + side + 16, content.y, content.width - side - 16, content.height);
       const int valueH = std::min(104, info.height / 2), top = info.y + (info.height - valueH - 76) / 2;
       toolsdigits::draw(s, fui::makeRect(info.x + 12, top, info.width - 24, valueH), time);
-      caps(s, w, fui::makeRect(info.x, top + valueH + 8, info.width, 32), I18N.get(weekdays[weekday]));
-      text(s, fui::makeRect(info.x, top + valueH + 44, info.width, 32), m.validTime ? date : tr(STR_READING_CLOCK), 0);
+      caps(s, w, fui::makeRect(info.x, top + valueH + 8, info.width, 32),
+           m.validTime ? I18N.get(weekdays[weekday]) : "");
+      text(s, fui::makeRect(info.x, top + valueH + 44, info.width, 32), m.validTime ? date : tr(STR_CLOCK_MANUAL), 0);
     } else {
       const int offset = std::min(18, std::max(0, int(content.height) - int(content.width) - 110));
       const int side = std::min(int(content.width), int(content.height) - 100 - offset);
       face(s, fui::makeRect(content.x, content.y + offset, content.width, side), m);
       toolsdigits::draw(s, fui::makeRect(content.x, content.y + side + offset + 12, content.width, 50), time);
-      std::snprintf(w.label, sizeof(w.label), "%s · %s", I18N.get(weekdays[weekday]),
-                    m.validTime ? date : tr(STR_READING_CLOCK));
+      if (m.validTime)
+        std::snprintf(w.label, sizeof(w.label), "%s · %s", I18N.get(weekdays[weekday]), date);
+      else
+        std::snprintf(w.label, sizeof(w.label), "%s", tr(STR_CLOCK_MANUAL));
       caps(s, w, fui::makeRect(content.x, content.y + side + offset + 66, content.width, 34), w.label, 0);
     }
   } else {
     const int y = content.y + (wide ? 30 : content.height / 5);
-    caps(s, w, fui::makeRect(content.x, y - 20, content.width, 44), I18N.get(weekdays[weekday]));
+    caps(s, w, fui::makeRect(content.x, y - 20, content.width, 44),
+         m.validTime ? I18N.get(weekdays[weekday]) : "");
     toolsdigits::draw(s,
                       fui::makeRect(content.x + 8, y + 50 - (wide ? 8 : 0), content.width - 16,
                                     content.height * (wide ? 48 : 40) / 100),
                       time);
     text(s,
          fui::makeRect(content.x, content.y + content.height * (wide ? 73 : 76) / 100, content.width, wide ? 32 : 40),
-         m.validTime ? date : tr(STR_READING_CLOCK), 0);
+         m.validTime ? date : tr(STR_CLOCK_MANUAL), 0);
   }
   if (!m.analog) {
     const auto chip = fui::makeRect(content.x + (content.width - 136) / 2, content.bottom() - 42, 136, 34);

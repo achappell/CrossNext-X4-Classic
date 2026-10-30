@@ -160,6 +160,18 @@ uint32_t MinesweeperActivity::surfaceMeaning() const {
 
 void MinesweeperActivity::loop() {
   namespace fui = freeink::ui;
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
+  if (sidebuttons::classic() && screen == ms::Screen::Board && interactions.coordinateEditing() &&
+      mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, kFlagHoldMs)) {
+    fui::Rect cell;
+    int column = 0, row = 0;
+    if (surfaceRevealed() && interactions.buttonFocusRect(cell) &&
+        mineui::cellAt(toybox::makeTarget(renderer).deviceContext(), cell.x + cell.width / 2,
+                       cell.y + cell.height / 2, column, row, game.columns, game.rows) &&
+        ms::toggleFlag(game, column, row)) requestUpdate();
+    return;
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (settings) {
@@ -292,8 +304,7 @@ void MinesweeperActivity::loop() {
       // The rules decide legality, and what the tap even MEANS: ms::dig digs a
       // covered cell and chords a revealed number that already carries its
       // flags. The choice between them is a rule, so it lives in the core
-      // where the host suite can reach it -- there is nothing here that could
-      // prove it, and the simulator never runs this file's input at all.
+      // where the host suite exercises digs and chords independently of UI input.
       const bool changed = flagMode ? ms::toggleFlag(game, column, row) : ms::dig(game, column, row);
       if (changed) requestUpdate();
       return;
@@ -389,7 +400,7 @@ void MinesweeperActivity::loop() {
 }
 
 void MinesweeperActivity::render(RenderLock&&) {
-  if (settings) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && settings) interactions.setFocusedIndex(-1);
   namespace fui = freeink::ui;
 
   renderer.clearScreen();
@@ -418,6 +429,7 @@ void MinesweeperActivity::render(RenderLock&&) {
     case ms::Screen::HowTo: {
       mineui::HowToModel model;
       model.page = howToPage;
+      model.classicControls = sidebuttons::classic();
       mineui::buildHowTo(surface, model);
       break;
     }
@@ -427,6 +439,7 @@ void MinesweeperActivity::render(RenderLock&&) {
       model.game = game;
       model.showMines = ms::over(game);
       model.flagMode = flagMode;
+      model.classicControls = sidebuttons::classic();
       mineui::buildBoard(surface, model);
       break;
     }
@@ -450,12 +463,19 @@ void MinesweeperActivity::render(RenderLock&&) {
       break;
     }
   }
+  if (sidebuttons::classic() && screen == ms::Screen::Board && !ms::over(game)) {
+    const auto first = mineui::cellRect(device, 0, 0, game.columns, game.rows);
+    const auto last = mineui::cellRect(device, game.columns - 1, game.rows - 1, game.columns, game.rows);
+    frame.navigationGrid(fui::makeRect(first.x, first.y, last.right() - first.x, last.bottom() - first.y),
+                         game.columns, game.rows);
+  }
 
   interactionsReady = true;
-  if (screen == ms::Screen::Board) interactions.limitButtonActions({mineui::ActionToggleMode});
+  if (!sidebuttons::classic() && screen == ms::Screen::Board)
+    interactions.limitButtonActions({mineui::ActionToggleMode});
   toybox::reportOverflow(interactions, "Minesweeper", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

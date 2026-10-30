@@ -432,6 +432,10 @@ void gameScreens(const char* out) {
           canvas->target.view = "pet-game-reference";
           canvas->target.expectedFullText = kind == 2 && state < 6 ? tr(STR_PET_PUZZLE_HELP) : nullptr;
           canvas->target.expectedFullTextSeen = false;
+          if (game.finished()) {
+            canvas->device.hasTouch = false;
+            canvas->interactions.setExplicitCoordinateNavigation(true);
+          }
           canvas->paint(m, w);
           canvas->checkHits();
           if (canvas->target.expectedFullText) CHECK(canvas->target.expectedFullTextSeen);
@@ -451,9 +455,22 @@ void gameScreens(const char* out) {
           CHECK(done == unsigned(game.finished()));
           if (kind == 2) CHECK(reset == unsigned(game.phase == pet::GamePhase::Playing));
           if (kind == 1 && game.showing()) CHECK(next == 1);
+          if (game.finished()) {
+            canvas->interactions.setFocusedIndex(-1);
+            fui::InputSnapshot key{};
+            key.focusPrev = true;
+            canvas->interactions.route(key);
+            key = {};
+            key.confirm = true;
+            CHECK(canvas->interactions.route(key).action == petui::GameDone);
+            canvas->interactions.paintButtonFocus(canvas->target);
+          }
           if (orientation < 2 && (state == 0 || state == 1 || state == 2 || state == 4 || state == 6))
             canvas->write(std::string(out) + "/game-" + (lang == Language::ES ? "es-" : "en-") + std::to_string(width) +
                           "-" + std::to_string(kind) + "-" + std::to_string(state) + ".pbm");
+          canvas->interactions.setExplicitCoordinateNavigation(false);
+          canvas->interactions.setFocusedIndex(-1);
+          canvas->device.hasTouch = true;
           canvas->target.expectedFullText = nullptr;
         }
       }

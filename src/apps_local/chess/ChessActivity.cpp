@@ -121,6 +121,7 @@ chessui::StartModel ChessActivity::startModel() const {
   model.canTakeBack = hasSavedGame && canTakeBack();
   model.continueDetail = continueDetail;
   model.selected = startIndex;
+  model.classicControls = sidebuttons::classic();
   return model;
 }
 
@@ -190,6 +191,11 @@ void ChessActivity::activateStartRow(const chessui::StartRow row) {
       view = View::Board;
       requestNewGame();
       break;
+    case chessui::StartRow::TakeBack:
+      if (!canTakeBack()) return;
+      view = View::Board;
+      takeBack();
+      return;
     case chessui::StartRow::Puzzles: {
       auto puzzles = ChessPuzzleActivity::create(renderer, mappedInput);
       if (puzzles) startActivityForResult(std::move(puzzles), [this](const ActivityResult&) { goToMenu(); });
@@ -226,8 +232,6 @@ void ChessActivity::routeStartMenu() {
     input.touchX = static_cast<int16_t>(tapX);
     input.touchY = static_cast<int16_t>(tapY);
   }
-  // No focusNext/focusPrev/confirm. Rows are tapped. Confirm does not exist on
-  // this device, so a row selection only a button could open was a dead end.
 
   if (!input.touchReleased || !interactionsReady) return;
 
@@ -684,6 +688,14 @@ uint32_t ChessActivity::surfaceMeaning() const {
 }
 
 void ChessActivity::loop() {
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      interactions.coordinateEditing() && selectedSquare >= 0) {
+    selectedSquare = -1;
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (view == View::Menu) {
     routeStartMenu();
     return;
@@ -760,22 +772,6 @@ void ChessActivity::loop() {
     return;
   }
 
-  // No button navigation. The board is pointing, and pointing is fingers.
-  //
-  // There was a D-pad cursor here, moved by Up/Down/Left/Right and committed
-  // with Confirm. On the X4 Pro three of those four buttons do not exist --
-  // left, right and confirm are PIN_UNASSIGNED in the board profile and are
-  // never configured as inputs -- so the cursor could move up and down a file
-  // and could never be acted on.
-  //
-  // It was worse than the shelf's version, which at least drew itself: this one
-  // was guarded by `!mappedInput.hasTouch()`, so on a touch device it was
-  // INVISIBLE, and Up/Down still moved it and still called requestUpdate(). A
-  // guaranteed full-panel repaint that changed nothing on screen, which is
-  // exactly what a bug looks like on e-ink.
-  //
-  // See docs/buttons.md. Up and Down are the two side page keys and they page;
-  // they do not push things around a board.
 }
 
 void ChessActivity::drawSquareContents(const BoardGeometry& geometry, const int square) const {
@@ -872,8 +868,6 @@ void ChessActivity::routeSettings() {
     input.touchX = static_cast<int16_t>(tapX);
     input.touchY = static_cast<int16_t>(tapY);
   }
-  // No focusNext/focusPrev/confirm. Rows are tapped. Confirm does not exist on
-  // this device, so a row selection only a button could open was a dead end.
 
   if (!input.touchReleased || !interactionsReady) return;
 
@@ -971,7 +965,7 @@ void ChessActivity::drawSettings() {
 // the player out to the apps hub, which is where they came from two taps ago.
 
 void ChessActivity::render(RenderLock&&) {
-  if (view == View::Settings) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view == View::Settings) interactions.setFocusedIndex(-1);
   if (view == View::Menu) {
     drawStartMenu();
     renderer.displayBuffer();
@@ -1028,6 +1022,8 @@ void ChessActivity::render(RenderLock&&) {
 
   const BoardGeometry geometry = boardGeometry();
   const int boardSize = geometry.squareSize * 8;
+  if (sidebuttons::classic())
+    frame.navigationGrid(fui::makeRect(geometry.originX, geometry.originY, boardSize, boardSize), 8, 8);
   for (int square = 0; square < 64; ++square) {
     drawSquareContents(geometry, square);
   }

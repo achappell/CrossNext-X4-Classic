@@ -1,5 +1,60 @@
 # CrossNext changes
 
+## Local X4 Classic software candidate — 2026-10-30
+
+- Prepare opt-in Classic WiFi diagnostic development/release targets. Picker-exit
+  publication replaces a bounded numeric SD trace; no credentials or network
+  identifiers are captured. This is not a connectivity fix or physical SD/WiFi
+  verification; see troubleshooting for data-loss and USB export limitations.
+  After three-layer review corrections, the complete diagnostic host/filesystem/
+  production-consumer suite and all four ordinary/diagnostic Classic builds pass.
+  Image identity, opt-out and measured-slot fit are checked offline. The separate
+  ignored `dist/wifi-diagnostics/` delivery contains only the reviewed application,
+  manifest and notes; normal packages are unchanged. No findings remain deferred.
+- Correct Classic Apps/Games front-button row navigation across pages, retaining
+  chooser/page controls and side navigation. Include displayed recent books in
+  Classic Home's physical selection ring, with visible Continue focus and Confirm
+  opening the selected book; Pro/C3 keep their existing menu-only Home ring.
+  Native Classic before/after runtime scenarios reproduce then pass both paths.
+  Final navigation proof also passes seven host suites plus the CI shell suite,
+  16 Classic runtime checks, current Pro touch/side smoke, and both Classic
+  development/release device builds.
+  This navigation correction has not been installed or verified on hardware.
+- Add separate S3/16 MB/8 MB PSRAM/SDMMC development and release targets and a
+  genuine Classic simulator with six navigation keys plus Power, no touch,
+  frontlight or Home key; reject touch-assisted scripted Classic input.
+- Add opt-in chrome focus and explicit coordinate/adjustment modes across active
+  app/game paths, with nonmutating editor entry, cancellation and held-release
+  suppression. Retain Pro/C3 input behavior and device memory/slot guards.
+- Adapt Classic board instructions and full-height screen hints to actual keys;
+  retain touch instructions and layout on Pro.
+- Restore the existing phone-typing entry in Classic Notes and named-list options.
+  Disconnected simulator runs open the Wi-Fi child and can cancel safely; they do
+  not establish a running phone service or change existing note/task storage.
+- Make installed Flashcards Photo, Undo and question-summary controls reachable
+  by Classic focus as well as touch; keep held-answer history input from leaking
+  a short release. Retain installed-deck scheduling, history and resume formats.
+- Size translated Checkers Help lessons from their wrapped text so complete
+  Spanish capture rules fit without overlapping the next lesson or page controls.
+- Add local Classic application/factory ZIP, manifest and hash packaging using
+  current build outputs. SD requires a compatible updater; USB factory use still
+  requires a separate identity, lock, backup and recovery gate.
+- Keep simulator/build evidence distinct from physical support: no Classic
+  flash, hardware recovery, online release or publishing authorization is claimed.
+- Account for all 29 companion rows with nested keys, production boundary fixtures
+  and persisted reopens. After independent review corrections, all 32 affected
+  native runners, fresh Classic development/release and Pro native builds pass.
+  Actual Pro touch/side/configured-Confirm smoke includes the changed Notes queue.
+  The final application is 7,618,176 bytes with 704,896 generated-slot headroom;
+  current factory inputs, boot-app initialization, ZIP and SHA-256 manifests pass.
+- Review corrections preserve queued focus/Confirm gestures, validate the selected
+  published interaction generation, reject synthetic touch through the shared
+  no-touch parser, verify factory boot-app bytes, and retain real clipped note
+  previews. Classic-only held-button guidance no longer changes C3 instructions.
+  Actual staged-Back/card-reset/durable-Undo evidence and final global checks cover
+  the corrections. No findings remain deferred. Formatter executables were
+  unavailable, not passed; physical-device and installed-table gates remain open.
+
 ## CrossNext v1.1.0 — 2026-10-25
 
 - Add PET: three companions, reading-based growth, care, four minigames,

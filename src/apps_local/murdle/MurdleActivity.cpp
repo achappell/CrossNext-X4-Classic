@@ -283,6 +283,8 @@ void MurdleActivity::resetAllProgress() {
 // Murdle was the only app in apps_local/ doing this; every other game reads the
 // edges main.cpp sampled, which is why only this one was deaf.
 void MurdleActivity::loop() {
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   const bool backReleased = mappedInput.wasReleased(MappedInputManager::Button::Back);
   if (dirty && millis() - lastSaveAttempt >= 3000) {
     const bool wasFailed = saveFailed;
@@ -732,7 +734,7 @@ void MurdleActivity::routeAction(const int action, const int value) {
 // ---------------------------------------------------------------------------
 
 void MurdleActivity::render(RenderLock&&) {
-  if (view == View::Cases) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view == View::Cases) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   fui::GfxRendererTarget target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer);
@@ -745,7 +747,7 @@ void MurdleActivity::render(RenderLock&&) {
   if (saveNotice) {
     ui::buildStorageError(screen, dirty);
     const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), tr(STR_RETRY), "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     interactionsReady = true;
     return;
@@ -859,7 +861,7 @@ void MurdleActivity::render(RenderLock&&) {
   toybox::reportOverflow(interactions, "Murdle", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   // A new case and a verdict are page turns; a mark is not. Spend the full
   // refresh on meaning rather than on frames.

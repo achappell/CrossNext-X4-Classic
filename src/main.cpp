@@ -590,6 +590,11 @@ void setup() {
   unattendedWakeMagic = 0;
 
   gpio.begin();
+#ifdef SIMULATOR
+  LOG_INF("SIM", "board=%s classic=%d touch=%d frontlight=%d home=%d navigation=Back,Confirm,Left,Right,Up,Down power=Power",
+          BoardConfig::ACTIVE.name, BoardConfig::isX4Classic(), BoardConfig::hasTouch(),
+          BoardConfig::hasPwmFrontlight(), BoardConfig::hasHomeKey());
+#endif
 
 #if !SOC_PM_SUPPORT_EXT1_WAKEUP
   // X4 battery latch: GPIO13 drives the battery MOSFET gate. Deep sleep holds

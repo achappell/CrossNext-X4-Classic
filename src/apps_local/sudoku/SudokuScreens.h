@@ -57,6 +57,7 @@ struct SettingsModel {
 
 struct HowToModel {
   int page = 0;
+  bool classicControls = false;
 };
 
 struct BoardModel {
@@ -70,6 +71,7 @@ struct BoardModel {
   bool generating = false;
   int selectedCell = sudoku::kNoCell;
   bool notesMode = false;
+  bool classicControls = false;
   sudoku::EntryTool entryTool = sudoku::EntryTool::Digit;
   bool showMatches = true;
   // What the capsule says instead of the count: the rule a hint cited, or that

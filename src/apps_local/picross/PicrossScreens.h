@@ -59,6 +59,7 @@ struct BoardModel {
   int mode = ModeFill;  // which input mode is active, drawn on the capsule
   int solvedCount = 0;
   int total = 0;
+  bool classicControls = false;
 };
 
 // Numbered picker, with completion and in-progress marks.
@@ -86,6 +87,7 @@ struct MenuModel {
   // is a copy that goes stale the next time the layout or the bank moves --
   // which is exactly what happened to the literal 16 this replaced.
   bool followSelection = false;
+  bool coordinatePicker = false;
 };
 
 // Where the picker drew its tile grid. Same discipline as the board's Layout:
@@ -122,7 +124,7 @@ void buildBoard(toybox::Screen& screen, const BoardModel& model, Layout& layout)
 void buildMenu(toybox::Screen& screen, const MenuModel& model, PickerLayout& layout);
 void buildPicker(toybox::Screen& screen, const MenuModel& model, PickerLayout& layout);
 void buildSizes(toybox::Screen& screen, const MenuModel& model);
-void buildHelp(toybox::Screen& screen, int page = 0);
+void buildHelp(toybox::Screen& screen, int page = 0, bool classicControls = false);
 int groupFor(int index);
 int groupFirst(int group);
 

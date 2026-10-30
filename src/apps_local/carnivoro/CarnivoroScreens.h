@@ -57,12 +57,20 @@ void draw(fui::DrawTarget&, const fui::DeviceContext&, Model&, Geometry&, pagedt
 template <typename Screen>
 void build(Screen& screen, Model& m, Geometry& g, pagedtext::Work& work) {
   m.keyboardFocus = false;
-  for (int i = 0; m.view != View::Cases && i < g.count; ++i) {
+  for (int i = 0; i < g.count && !m.keyboardFocus; ++i) {
     if (!screen.frame().buttonSelected(g.hits[i].action, g.hits[i].value)) continue;
     m.keyboardFocus = true;
     m.focus = i;
     m.focusAction = g.hits[i].action;
     m.focusValue = g.hits[i].value;
+  }
+  // Classic keeps the SDK's cursor in explicit-coordinate mode, where
+  // buttonSelected() can only report the caller's default. Ask the cursor
+  // directly, so the highlight follows the control Confirm will actually hit.
+  if (screen.frame().buttonNavigationActive()) {
+    m.keyboardFocus = true;
+    m.focusAction = screen.frame().focusedAction();
+    m.focusValue = screen.frame().focusedValue();
   }
   draw(screen.target(), screen.device(), m, g, work);
   for (int i = 0; i < g.count; ++i)

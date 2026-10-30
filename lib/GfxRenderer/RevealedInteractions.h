@@ -123,6 +123,13 @@ class RevealedInteractions {
   int16_t focusedIndex() const { return buffer_.focusedIndex(); }
   uint32_t focusPosition() const { return buffer_.focusPosition(); }
   bool hasButtonFocus() const { return buffer_.hasButtonFocus(); }
+  void setExplicitCoordinateNavigation(bool enabled) { buffer_.setExplicitCoordinateNavigation(enabled); }
+  bool coordinateFocused() const { return buffer_.coordinateFocused(); }
+  bool coordinateEditing() const { return buffer_.coordinateEditing(); }
+  bool enterCoordinateEditor() { return buffer_.enterCoordinateEditor(); }
+  bool leaveCoordinateEditor() { return buffer_.leaveCoordinateEditor(); }
+  bool moveCoordinateCursor(int dx, int dy) { return buffer_.moveCoordinateCursor(dx, dy); }
+  void coordinateAction(freeink::ui::ActionId action) { buffer_.coordinateAction(action); }
   bool buttonFocusRect(freeink::ui::Rect& rect) const { return buffer_.buttonFocusRect(rect); }
   void paintButtonFocus(freeink::ui::DrawTarget& target) const { buffer_.paintButtonFocus(target); }
   void setFocusedIndex(const int16_t index) { buffer_.setFocusedIndex(index); }

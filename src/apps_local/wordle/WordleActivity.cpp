@@ -83,6 +83,8 @@ void WordleActivity::submit() {
 }
 void WordleActivity::loop() {
   RenderLock lock(*this);
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     save();
     if (view == View::Menu) {
@@ -150,7 +152,7 @@ void WordleActivity::loop() {
   if (dirty && millis() - lastSave >= 2000) save();
 }
 void WordleActivity::render(RenderLock&&) {
-  if (view == View::Lengths) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view == View::Lengths) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, false);

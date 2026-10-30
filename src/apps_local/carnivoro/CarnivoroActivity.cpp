@@ -14,7 +14,13 @@
 #include "../ui/ToyboxFonts.h"
 #include "CrossPointSettings.h"
 #include "components/SideButtonNavigation.h"
+// The 16 KiB budget is for the 32-bit device ABI. Native simulator pointers
+// enlarge the same fixed workspace; keep that ABI bounded independently.
+#ifdef SIMULATOR
+static_assert(sizeof(CarnivoroActivity) <= 17 * 1024, "Carnivoro keeps a fixed native workspace");
+#else
 static_assert(sizeof(CarnivoroActivity) <= 16 * 1024, "Carnivoro keeps a fixed activity workspace");
+#endif
 namespace fui = freeink::ui;
 namespace {
 constexpr char live[] = "/.crosspoint/carnivoro.bin", backup[] = "/.crosspoint/carnivoro.bak",
@@ -447,7 +453,8 @@ void CarnivoroActivity::loop() {
       }
     }
   }
-  const auto action = routeTouch(mappedInput, false, false, model.view != carnivoroui::View::Cases);
+  const auto action = routeTouch(mappedInput, false, false,
+                                 sidebuttons::classic() || model.view != carnivoroui::View::Cases);
   if (action.routed && app.invalidated()) requestUpdate();
 
   if (action) {

@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 
 source = Path('../../src/apps_local/murdle/MurdleActivity.cpp').read_text(encoding='utf8')
-start = source.index('  if (view == View::Cases)', source.index('void MurdleActivity::loop()'))
+start = source.index('  if (view == View::Cases && interactionsReady && interactions.routable())', source.index('void MurdleActivity::loop()'))
 end = source.index('  fui::InputSnapshot', start)
 Path(sys.argv[1]).write_text(source[start:end], encoding='utf8')
 start = source.index('      view = View::Cases;', source.index('case ui::ActionCampaign:'))

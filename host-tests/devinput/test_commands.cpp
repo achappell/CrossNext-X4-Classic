@@ -6,6 +6,7 @@
 // wedging the device is `elapsed > 0` in DevInputInjector.cpp, in a file this
 // suite replaces. Delete that guard and every check below still passes.
 
+#include <BoardConfig.h>
 #include <HalGPIO.h>
 
 #include <cmath>
@@ -262,6 +263,37 @@ int main() {
     ok();
   else
     bad("a refused command still reached the injector");
+
+  // The serial path preserves leading whitespace and classifies commands;
+  // HTTP trims its body and calls the same execution boundary directly.
+  BoardConfig::touchAvailable = false;
+  const int beforeNoTouch = seen.calls;
+  for (const char* command : {"TAP 400 240", "LONG 400 240", "SWIPE 1 1 2 2"}) {
+    const std::string serialCommand = std::string(" \t") + command;
+    if (devinput::isCommand(serialCommand.c_str()))
+      ok();
+    else
+      bad("serial-style touch command was not recognized");
+    expect(serialCommand.c_str(), "ERR board has no touch");
+    expect(command, "ERR board has no touch");
+  }
+  if (seen.calls == beforeNoTouch)
+    ok();
+  else
+    bad("a no-touch board command still enqueued synthetic touch");
+
+  for (const char* command : {" \tBTN UP 125", "BTN UP 125"}) {
+    const int beforeButton = seen.calls;
+    expect(command, "OK BTN UP 125");
+    if (seen.calls == beforeButton + 1 && seen.verb == "btn" && seen.button == HalGPIO::BTN_UP && seen.ms == 125)
+      ok();
+    else
+      bad("no-touch board button command did not reach the injector");
+  }
+  BoardConfig::touchAvailable = true;
+  expect(" \tTAP 400 240", "OK TAP");
+  expect("LONG 400 240", "OK LONG");
+  expect("SWIPE 1 1 2 2", "OK SWIPE");
 
   std::printf("%d checks, %d failed\n", checks, failed);
   return failed == 0 ? 0 : 1;

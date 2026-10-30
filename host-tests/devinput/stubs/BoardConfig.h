@@ -1,10 +1,11 @@
 #pragma once
-// Enough BoardConfig for the command parser: it reads the panel size and
-// nothing else. 800x480 is both device envs.
+// Host adapter for the parser's panel geometry and board touch capability.
 namespace BoardConfig {
 struct Board {
   int displayWidth;
   int displayHeight;
 };
 inline constexpr Board ACTIVE{800, 480};
+inline bool touchAvailable = true;
+inline bool hasTouch() { return touchAvailable; }
 }  // namespace BoardConfig

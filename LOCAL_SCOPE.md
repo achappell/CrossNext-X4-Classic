@@ -2,14 +2,41 @@
 
 CrossNext builds on [CrossPlay](https://github.com/ma-r-s/crossplay) and
 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader).
-This release targets **Xteink X4 Pro** (ESP32-S3, 16 MB flash, 8 MB PSRAM,
-480 × 800 touch display and frontlight). Other inherited board environments
-remain in the source tree but are outside this release's support and checks.
-See [button handling](docs/buttons.md) for the device input model.
+The published **Xteink X4 Pro** path uses ESP32-S3, 16 MB flash, 8 MB PSRAM,
+480 × 800 touch and frontlight. The **X4 Classic local** target uses the SDK's
+S3/16 MB/8 MB PSRAM, SDMMC and six-key profile, without touch/frontlight/Home.
+Classic software-build/simulator evidence is not physical-device support;
+identity, USB-lock, backup/recovery and installed partition fit remain unverified.
+Other inherited boards are outside these checks. See [button handling](docs/buttons.md).
 
 **This file overrides [SCOPE.md](SCOPE.md) where the two disagree.** SCOPE.md is
 upstream's document and is kept verbatim so it merges cleanly. It says
 interactive apps and games are out of scope. For this fork they are the point.
+
+Classic integration owns `x4c` / `gh_release_x4c`, the genuine
+`simulator_x4_classic` identity and key-only script gate, Classic HAL wake guards,
+opt-in bounded coordinate/chrome navigation, and the active 16 Games / 13 Apps
+registry paths and their child views. Non-Classic behavior is preserved; the
+original C3 paths do not opt into Classic's editor contract. Reader semantics,
+online-update policy and device operation authorization do not expand.
+
+The native Carnivoro object allows only its host pointer-size difference:
+17 KiB under `SIMULATOR`, while its device limit remains 16 KiB. Application
+generated-layout fit never removes runtime installed-slot rejection. Packaging
+uses the current release environment's application and actual factory producer,
+with hashes/manifest; Classic application installation is compatible-SD only and
+factory USB awaits its separate physical gate. There is no Classic online/Pro
+OTA route. The included SDK is ordinary tracked source and its UI changes are
+part of the source review/export.
+
+The final 2026-10-30 post-review software gate accepts all 29 companion rows using
+actual Classic keys plus production fixtures/native consumer regressions. All
+32 affected runners and fresh Classic development/release and Pro native builds
+pass. Current-source package and Pro touch/side/queued-Confirm evidence are indexed
+in `qa-artifacts/x4c-coverage.json` and
+`qa-artifacts/x4c-integration/final/verification-summary.json`. No physical Classic
+validation is implied; formatter availability is not a passed gate.
+
 
 ## What this fork is for
 

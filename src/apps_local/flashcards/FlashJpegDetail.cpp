@@ -1,5 +1,6 @@
 #include "FlashJpegDetail.h"
 
+#include <Arduino.h>
 #include <HalMemory.h>
 #include <Logging.h>
 
@@ -31,7 +32,8 @@ void imageFree(void* pointer) {
   liveBytes -= block->bytes + sizeof(BlockHeader);
   HalMemory::PsramDeleter{}(reinterpret_cast<uint8_t*>(block));
 }
-void* imageReallocate(void* pointer, size_t oldBytes, size_t newBytes) {
+// stb requires the complete allocator contract even when JPEG uses no reallocations.
+[[maybe_unused]] void* imageReallocate(void* pointer, size_t oldBytes, size_t newBytes) {
   void* next = imageAllocate(newBytes);
   if (!next) return nullptr;
   if (pointer) std::memcpy(next, pointer, std::min(oldBytes, newBytes));
@@ -53,7 +55,11 @@ void* imageReallocate(void* pointer, size_t oldBytes, size_t newBytes) {
 #define STBI_REALLOC_SIZED(pointer, oldBytes, newBytes) imageReallocate(pointer, oldBytes, newBytes)
 #define STBI_FREE(pointer) imageFree(pointer)
 #define STB_IMAGE_IMPLEMENTATION
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-function"
 #include "../../../third_party/stb/stb_image.h"
+#pragma GCC diagnostic pop
 
 namespace flashcards {
 namespace {

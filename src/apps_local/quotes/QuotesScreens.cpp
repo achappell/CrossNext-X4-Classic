@@ -112,7 +112,8 @@ void list(toybox::Screen& s, const ListModel& m) {
   if (!m.visible) {
     const auto notice = makeRect(b.x + 12, top + 20, b.width - 24, std::max(0, b.bottom() - 60 - top - 20));
     const int lines = std::max(1, int(notice.height) / std::max(1, int(s.target().lineHeight(4))));
-    text(s, notice, m.tab == 2 ? tr(STR_RT_NO_FAVORITES) : tr(STR_QUOTES_HELP), 4, lines);
+    text(s, notice, m.tab == 2 ? tr(STR_RT_NO_FAVORITES)
+                             : s.device().hasTouch ? tr(STR_QUOTES_HELP) : tr(STR_BUTTON_QUOTE_GUIDE), 4, lines);
   }
   pager(s, makeRect(b.x, b.bottom() - 44, b.width, 44), m.page, m.pages);
 }

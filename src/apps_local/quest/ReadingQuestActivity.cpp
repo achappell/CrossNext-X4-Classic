@@ -153,12 +153,19 @@ void ReadingQuestActivity::action(fui::ActionId action, int value) {
   requestUpdate();
 }
 void ReadingQuestActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("APP-NAV", "Navigation queue full");
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(), sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("APP-NAV", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
   sectionnav::Input::Event navCommand{};
-  const bool hasNavCommand = ((!loading && ready) || navigation.backPending()) && navigation.pop(navCommand);
+  const bool hasNavCommand =
+      ((!loading && ready && surfaceRevealed()) || navigation.backPending()) && navigation.pop(navCommand);
+  if (hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Focus) {
+    sidebuttons::focus(interactions, navCommand.amount, *this);
+    return;
+  }
   const bool navBack = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Back;
+  const bool navConfirm = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Confirm;
   const int navStep = hasNavCommand && (navCommand.kind == sectionnav::Input::Kind::Step ||
                                         navCommand.kind == sectionnav::Input::Kind::Section)
                           ? navCommand.amount
@@ -173,7 +180,11 @@ void ReadingQuestActivity::loop() {
   }
   if (!assets.ready()) {
     int x, y;
-    if (ready && sidebuttons::poll(interactions, mappedInput, x, y)) {
+    if (ready && navConfirm) {
+      const auto event = sidebuttons::confirm(interactions, *this);
+      action(event.action, event.value);
+    } else if (ready && !mappedInput.wasReleased(MappedInputManager::Button::Confirm) &&
+               sidebuttons::poll(interactions, mappedInput, x, y)) {
       fui::InputSnapshot input;
       input.touchReleased = true;
       input.touchX = x;
@@ -203,7 +214,7 @@ void ReadingQuestActivity::loop() {
     return;
   }
   if (quest::hasLevelUp(profile) &&
-      (!interactions.hasButtonFocus() && mappedInput.wasReleased(MappedInputManager::Button::Confirm))) {
+      (!interactions.hasButtonFocus() && navConfirm)) {
     action(questui::LevelContinue, 0);
     return;
   }
@@ -223,13 +234,20 @@ void ReadingQuestActivity::loop() {
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Left)) action(questui::Tab, (tab + 2) % 3);
   if (mappedInput.wasReleased(MappedInputManager::Button::Right)) action(questui::Tab, (tab + 1) % 3);
-  int x, y;
-  if (!ready || !sidebuttons::poll(interactions, mappedInput, x, y)) return;
-  fui::InputSnapshot in;
-  in.touchReleased = true;
-  in.touchX = x;
-  in.touchY = y;
-  const auto event = sidebuttons::route(interactions, in, mappedInput, *this);
+  if (!ready) return;
+  fui::ActionEvent event{};
+  if (navConfirm) {
+    event = sidebuttons::confirm(interactions, *this);
+  } else {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return;
+    int x, y;
+    if (!sidebuttons::poll(interactions, mappedInput, x, y)) return;
+    fui::InputSnapshot in;
+    in.touchReleased = true;
+    in.touchX = x;
+    in.touchY = y;
+    event = sidebuttons::route(interactions, in, mappedInput, *this);
+  }
   action(event.action, event.value);
 }
 void ReadingQuestActivity::render(RenderLock&&) {

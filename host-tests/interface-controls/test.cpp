@@ -11,12 +11,13 @@ static void check(bool value) {
   if (!value) ++failures;
 }
 struct Buttons {
-  enum class Button { Back, Confirm, NavNext, NavPrevious };
+  enum class Button { Back, Confirm, NavNext, NavPrevious, Left, Right, Up, Down };
   bool held = false, released = false, longPress = false, back = false;
   uint32_t duration = 0;
-  bool wasReleased(Button b) const { return b == Button::Back ? back : b == Button::NavNext && released; }
-  bool isPressed(Button b) const { return b == Button::NavNext && held; }
-  bool wasLongPressed(Button b, unsigned) const { return b == Button::NavNext && longPress; }
+  Button heldButton = Button::NavNext, releasedButton = Button::NavNext;
+  bool wasReleased(Button b) const { return b == Button::Back ? back : b == releasedButton && released; }
+  bool isPressed(Button b) const { return b == heldButton && held; }
+  bool wasLongPressed(Button b, unsigned) const { return b == heldButton && longPress; }
   uint32_t getHeldTime() const { return duration; }
 };
 int main() {
@@ -56,6 +57,24 @@ int main() {
   keys.back = true;
   check(input.capture(keys, 900));
   check(input.pop(event) && event.kind == Kind::Back && !input.pop(event));
+  keys = {};
+  keys.released = true;
+  keys.releasedButton = Buttons::Button::Right;
+  check(input.capture(keys, 1000, true));
+  check(input.pop(event) && event.kind == Kind::Focus && event.amount == 1);
+  keys.released = false;
+  keys.held = keys.longPress = true;
+  keys.heldButton = Buttons::Button::Right;
+  keys.duration = 500;
+  check(input.capture(keys, 1100, true) && !input.pop(event));
+  keys.heldButton = Buttons::Button::Down;
+  check(input.capture(keys, 1200, true));
+  check(input.pop(event) && event.kind == Kind::Section && event.amount == 1);
+  keys = {};
+  keys.released = true;
+  keys.releasedButton = Buttons::Button::Left;
+  check(input.capture(keys, 1300, true, true));
+  check(input.pop(event) && event.kind == Kind::Focus && event.amount == 1);
 
   for (int initial = 0; initial < 4; ++initial)
     for (bool right : {false, true}) {

@@ -1193,18 +1193,22 @@ bool WallpapersActivity::gridCacheMatches(const wallpapersui::GridGeom& geom) co
 }
 
 void WallpapersActivity::loop() {
+  if (sidebuttons::cancelEditor(interactions_, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions_, mappedInput, *this)) return;
   if (job_ != Job::None) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       shelf::leave(renderer, mappedInput);
       return;
     }
     int x = 0, y = 0;
-    if (painted_ && mappedInput.wasScreenTapped(x, y) && interactionsReady_) {
+    if (painted_ && interactionsReady_ &&
+        sidebuttons::poll(interactions_, mappedInput, x, y, sidebuttons::classic())) {
       fui::InputSnapshot input{};
       input.touchReleased = true;
       input.touchX = x;
       input.touchY = y;
-      if (interactions_.route(input).action == wallpapersui::ActionPrepareCancel) {
+      if (sidebuttons::route(interactions_, input, mappedInput, *this, sidebuttons::classic()).action ==
+          wallpapersui::ActionPrepareCancel) {
         shelf::leave(renderer, mappedInput);
         return;
       }
@@ -1274,12 +1278,13 @@ void WallpapersActivity::loop() {
 
   if (view_ == View::ConfirmSet) {
     int x = 0, y = 0;
-    if (!interactionsReady_ || !surfaceRevealed() || !mappedInput.wasScreenTapped(x, y)) return;
+    if (!interactionsReady_ || !surfaceRevealed() ||
+        !sidebuttons::poll(interactions_, mappedInput, x, y, sidebuttons::classic())) return;
     fui::InputSnapshot input{};
     input.touchReleased = true;
     input.touchX = x;
     input.touchY = y;
-    const auto action = interactions_.route(input).action;
+    const auto action = sidebuttons::route(interactions_, input, mappedInput, *this, sidebuttons::classic()).action;
     if (action == wallpapersui::ActionSelectionCancel) {
       view_ = View::Grid;
       interactionsReady_ = false;
@@ -1290,6 +1295,21 @@ void WallpapersActivity::loop() {
   }
   if (view_ == View::Preview) {
     int x = 0, y = 0;
+    if (sidebuttons::classic()) {
+      if (mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, 500)) {
+        openSheet(sheetIndex_);
+        return;
+      }
+      if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+        if (slideshowAt_) {
+          slideshowAt_ = 0;
+          requestUpdate();
+        } else {
+          openSheet(sheetIndex_);
+        }
+        return;
+      }
+    }
     if (mappedInput.wasScreenLongPress(x, y)) {
       mappedInput.swallowCurrentTouch();
       openSheet(sheetIndex_);
@@ -1417,10 +1437,20 @@ void WallpapersActivity::loop() {
 
   int tapX = 0;
   int tapY = 0;
-  const bool longPress = mappedInput.wasScreenLongPress(tapX, tapY);
-  if (pages > 1 && (mappedInput.wasLongPressed(MappedInputManager::Button::NavNext, 500) ||
-                    mappedInput.wasLongPressed(MappedInputManager::Button::NavPrevious, 500))) {
-    const int direction = mappedInput.isPressed(MappedInputManager::Button::NavNext) ? 1 : -1;
+  bool longPress = mappedInput.wasScreenLongPress(tapX, tapY);
+  if (sidebuttons::classic() && interactions_.coordinateEditing() &&
+      mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, 500)) {
+    fui::Rect selected;
+    if (interactions_.buttonFocusRect(selected)) {
+      longPress = true;
+      tapX = selected.x + selected.width / 2;
+      tapY = selected.y + selected.height / 2;
+    }
+  }
+  const int heldPage = sidebuttons::classic() && interactions_.coordinateEditing() ? 0
+                                                                                 : sidebuttons::longStep(mappedInput);
+  if (pages > 1 && heldPage) {
+    const int direction = heldPage;
     const int next = std::clamp(page_ + direction, 0, pages - 1);
     if (next != page_) {
       showGalleryPage(next);
@@ -1611,8 +1641,10 @@ void WallpapersActivity::render(RenderLock&&) {
   interactionsReady_ = true;
   toybox::reportOverflow(interactions_, tr(STR_WALLPAPERS_TITLE), &renderer);
 
-  const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) {
+    const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
   // The slot count, every paint. reportOverflow only speaks once the table is
   // already full, which is the moment a control that draws normally has stopped
   // being tappable with nothing on screen to say so; the number beside it is

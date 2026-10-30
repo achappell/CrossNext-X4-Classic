@@ -117,7 +117,7 @@ void number(char* text, size_t capacity, int halves) {
   else
     std::snprintf(text, capacity, "%d", halves / 2);
 }
-const char* boardNote(const BoardModel& m) {
+const char* boardNote(const BoardModel& m, bool hasTouch) {
   if (m.review) return tr(STR_MATCH_BOARD);
   if (m.disagreed) return tr(STR_UI_IT_DISAGREES_KEEP_PLAYING_9DCA7F);
   if (m.thinking || (!m.yourTurn && !m.sharedDevice)) return tr(STR_UI_THINKING_B6D843);
@@ -125,6 +125,7 @@ const char* boardNote(const BoardModel& m) {
   if (m.caution == go::Caution::SelfAtari) return tr(STR_UI_THAT_STONE_WOULD_BE_IN_ATARI_916AD0);
   if (m.theyPassed) return tr(STR_UI_THEY_PASSED_1902F0);
   if (m.nothingLeft) return tr(STR_UI_NOTHING_LEFT_PASS_A415A7);
+  if (!hasTouch) return (m.aimed >= 0 ? tr(STR_BUTTON_COMMIT_MOVE) : tr(STR_BUTTON_AIM_CONFIRM));
   return m.aimed >= 0 ? tr(STR_GO_TAP_AGAIN) : tr(STR_GO_TOUCH);
 }
 }  // namespace
@@ -292,7 +293,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m) {
     toybox::bracket(s, fui::makeRect(x - reach, y - reach, 2 * reach + 1, 2 * reach + 1), std::max(3, g.pitch / 6), 2);
   }
   char played[80];
-  const char* note = boardNote(m);
+  const char* note = boardNote(m, s.device().hasTouch);
   if (!m.review && go::explainsPlayedOn(m.itPlayedOn, m.freePoints, m.disagreed, m.thinking, m.caution)) {
     std::snprintf(played, sizeof(played), tr(STR_UI_NOT_OVER_U_FREE_POINTS_B1035D), unsigned(m.freePoints));
     note = played;

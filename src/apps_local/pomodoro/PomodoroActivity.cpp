@@ -7,6 +7,7 @@
 
 #include "../Shelf.h"
 #include "../ui/PixelMenuTheme.h"
+#include "components/SideButtonNavigation.h"
 #include "util/LoopDeadline.h"
 std::unique_ptr<Activity> PomodoroActivity::create(GfxRenderer& renderer, MappedInputManager& input) {
   // The activity stack owns the fixed UI/save workspace for this screen's lifetime.
@@ -115,7 +116,8 @@ void PomodoroActivity::action(freeink::ui::ActionId action, int value) {
   requestUpdate();
 }
 void PomodoroActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("APP-NAV", "Navigation queue full");
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(), sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("APP-NAV", "Navigation queue full");
   int tapX = 0, tapY = 0;
   if (mappedInput.wasScreenTapped(tapX, tapY))
     pendingTap.capture(tapX, tapY, paintedRevision.load(std::memory_order_acquire));
@@ -155,10 +157,22 @@ void PomodoroActivity::loop() {
     requestUpdate();
     return;
   }
+  if (sidebuttons::classic() && hasNavCommand &&
+      (navCommand.kind == sectionnav::Input::Kind::Focus || navCommand.kind == sectionnav::Input::Kind::Confirm)) {
+    interactions.setExplicitCoordinateNavigation(true);
+    freeink::ui::InputSnapshot input{};
+    input.focusNext = navCommand.kind == sectionnav::Input::Kind::Focus && navCommand.amount > 0;
+    input.focusPrev = navCommand.kind == sectionnav::Input::Kind::Focus && navCommand.amount < 0;
+    input.confirm = navCommand.kind == sectionnav::Input::Kind::Confirm;
+    const auto event = interactions.route(input);
+    if (event.action) action(event.action, event.value);
+    else if (input.focusNext || input.focusPrev) requestUpdate();
+    return;
+  }
   if (ready && view == pomodoroui::View::Timer) {
     if (hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Step) {
       if ((std::abs(navStep) & 1) == 0) return;
-      action(pomodoroui::Toggle, 0);
+      if (!sidebuttons::classic() || !state.running) action(pomodoroui::Toggle, 0);
       return;
     }
   }
@@ -199,7 +213,7 @@ std::optional<uint32_t> PomodoroActivity::nextLoopWakeDelayMs(const uint32_t now
 }
 
 void PomodoroActivity::render(RenderLock&&) {
-  interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic()) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);

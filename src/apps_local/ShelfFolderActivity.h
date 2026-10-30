@@ -59,6 +59,8 @@ class ShelfFolderActivity final : public Activity {
   // there is nowhere to go, which is a folder of one page.
   bool showPage(int page);
 
+  void moveFrontSelection(int amount);
+
   // One screen's worth of rows, not one folder's worth of items.
   //
   // This used to be sized by the registry, so the folder's size was bounded by
@@ -84,12 +86,11 @@ class ShelfFolderActivity final : public Activity {
   sectionnav::Input navigation;
   // How many rows a page holds, from the last render. Cached rather than derived
   // in loop() because it is a property of the screen's geometry and not of the
-  // selection, so no input can make it disagree with what was drawn. The page
-  // number itself is deliberately kept in no member: that one would drift the
-  // moment a button moved the cursor, and it is not what is written down either.
-  // A tap can only arrive after a render, which is what makes this safe --
-  // interactionsReady says so.
+  // selection, so no input can make it disagree with what was drawn.
+  // interactionPage records the table's generation, not a second navigation
+  // position. Queued commands wait when selected has moved to another page.
   int rowsPerPage = 1;
+  int interactionPage = -1;
 
   // Whether the corner chip has been tapped: every item listed, each with a box,
   // and a tap toggles instead of opening. Not persisted -- it is a mode, not a

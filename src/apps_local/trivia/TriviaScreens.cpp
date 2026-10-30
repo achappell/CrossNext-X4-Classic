@@ -21,7 +21,7 @@ fui::TextStyle textStyle(const fui::FontId font, const fui::TextAlign align,
 
 // All-caps chrome: safe to ink-centre, because every glyph sits on the baseline.
 void drawLabel(toybox::Screen& screen, const fui::Rect& box, const char* text, const fui::FontId font,
-               const fui::TextAlign align, const toybox::CutMetrics& cut, const fui::Color colour = fui::Color::Black) {
+               const fui::TextAlign align, const fui::Color colour = fui::Color::Black) {
   screen.target().text(toybox::inkCentred(screen.target(), box, textStyle(font, align, colour)), text,
                        textStyle(font, align, colour));
 }
@@ -76,8 +76,7 @@ void chrome(toybox::Screen& screen, const char* title, const char* rightLabel) {
     // than rebuilt from the content top, which was a copy of the chrome's
     // geometry kept in an app file.
     const fui::Rect box = toybox::headerInkRect(screen).inset(fui::Insets{0, kMargin, 0, 0});
-    drawLabel(screen, box, rightLabel, toybox::kSmallFont, fui::TextAlign::Right, toybox::kButtonCut,
-              fui::Color::White);
+    drawLabel(screen, box, rightLabel, toybox::kSmallFont, fui::TextAlign::Right, fui::Color::White);
   }
 }
 
@@ -105,7 +104,7 @@ void drawDifficulty(toybox::Screen& screen, const int16_t x, const int16_t y, co
   // is the universal shape for progress, so the meter has to name itself.
   const fui::Rect box{static_cast<int16_t>(x + trivia::kDifficulties * (kPip + kGap) + 6), static_cast<int16_t>(y - 5),
                       220, static_cast<int16_t>(kPip + 10)};
-  drawLabel(screen, box, "DIFFICULTY", toybox::kSmallFont, fui::TextAlign::Left, toybox::kButtonCut);
+  drawLabel(screen, box, "DIFFICULTY", toybox::kSmallFont, fui::TextAlign::Left);
 }
 
 int16_t footerTop(const toybox::Screen& screen) {
@@ -118,7 +117,7 @@ void drawAction(toybox::Screen& screen, const char* label, const fui::ActionId a
   const fui::Rect box{static_cast<int16_t>(body.x + kMargin), static_cast<int16_t>(footerTop(screen) + 16),
                       static_cast<int16_t>(body.width - kMargin * 2), 64};
   screen.target().fill(box, fui::Paint::solid(fui::Color::Black));
-  drawLabel(screen, box, label, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut, fui::Color::White);
+  drawLabel(screen, box, label, toybox::kSmallFont, fui::TextAlign::Center, fui::Color::White);
   screen.frame().hit(box, action);
 }
 
@@ -138,7 +137,7 @@ void drawAsideAction(toybox::Screen& screen, const char* label, const fui::Actio
   const fui::Rect aside{static_cast<int16_t>(body.x + kMargin + full - kAsideWidth),
                         static_cast<int16_t>(footerTop(screen) + 16), kAsideWidth, 64};
   screen.target().stroke(aside, fui::Paint::solid(fui::Color::Black), 2);
-  drawLabel(screen, aside, label, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut);
+  drawLabel(screen, aside, label, toybox::kSmallFont, fui::TextAlign::Center);
   screen.frame().hit(aside, action);
 }
 
@@ -165,13 +164,13 @@ void drawSecondRow(toybox::Screen& screen, const char* left, const fui::ActionId
   if (left != nullptr) {
     const fui::Rect box{static_cast<int16_t>(body.x + kMargin), top, width, 52};
     screen.target().stroke(box, fui::Paint::solid(fui::Color::Black), 2);
-    drawLabel(screen, box, left, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut);
+    drawLabel(screen, box, left, toybox::kSmallFont, fui::TextAlign::Center);
     screen.frame().hit(box, leftAction);
   }
   if (right != nullptr) {
     const fui::Rect box{static_cast<int16_t>(body.x + kMargin + full - width), top, width, 52};
     screen.target().stroke(box, fui::Paint::solid(fui::Color::Black), 2);
-    drawLabel(screen, box, right, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut);
+    drawLabel(screen, box, right, toybox::kSmallFont, fui::TextAlign::Center);
     screen.frame().hit(box, rightAction);
   }
 }
@@ -188,12 +187,12 @@ void drawActionTrio(toybox::Screen& screen, const char* primary, const fui::Acti
 
   const fui::Rect main{static_cast<int16_t>(body.x + kMargin), top, wide, 64};
   screen.target().fill(main, fui::Paint::solid(fui::Color::Black));
-  drawLabel(screen, main, primary, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut, fui::Color::White);
+  drawLabel(screen, main, primary, toybox::kSmallFont, fui::TextAlign::Center, fui::Color::White);
   screen.frame().hit(main, primaryAction);
 
   const fui::Rect middle{static_cast<int16_t>(main.x + wide + kAsideGap), top, kAsideWidth, 64};
   screen.target().stroke(middle, fui::Paint::solid(fui::Color::Black), 2);
-  drawLabel(screen, middle, second, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut);
+  drawLabel(screen, middle, second, toybox::kSmallFont, fui::TextAlign::Center);
   screen.frame().hit(middle, secondAction);
 
   drawAsideAction(screen, third, thirdAction);
@@ -208,7 +207,7 @@ void drawActionPair(toybox::Screen& screen, const char* primary, const fui::Acti
 
   const fui::Rect main{static_cast<int16_t>(body.x + kMargin), static_cast<int16_t>(footerTop(screen) + 16), wide, 64};
   screen.target().fill(main, fui::Paint::solid(fui::Color::Black));
-  drawLabel(screen, main, primary, toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut, fui::Color::White);
+  drawLabel(screen, main, primary, toybox::kSmallFont, fui::TextAlign::Center, fui::Color::White);
   screen.frame().hit(main, primaryAction);
 
   drawAsideAction(screen, secondary, secondaryAction);
@@ -236,8 +235,7 @@ void questionCard(toybox::Screen& screen, const QuestionModel& model) {
 
   if (model.answer != nullptr) {
     hairline(screen, static_cast<int16_t>(footerTop(screen) - 96));
-    drawLabel(screen, fui::Rect{body.x, static_cast<int16_t>(footerTop(screen) - 84), body.width, 64}, model.answer,
-              toybox::kDisplayFont, fui::TextAlign::Center, toybox::kLargeCut);
+    drawLabel(screen, fui::Rect{body.x, static_cast<int16_t>(footerTop(screen) - 84), body.width, 64}, model.answer, toybox::kDisplayFont, fui::TextAlign::Center);
     // FLAG is only offered once the answer is showing: you cannot judge a
     // question bad until you have seen what it claims the answer is.
     // END in both states, and in the same place as solo's. Quizmaster had no
@@ -260,9 +258,7 @@ void buildNotice(toybox::Screen& screen, const NoticeModel& model) {
   const fui::Rect body = screen.body();
 
   const int16_t top = static_cast<int16_t>(body.y + 96);
-  drawLabel(screen,
-            fui::Rect{static_cast<int16_t>(body.x + kMargin), top, static_cast<int16_t>(body.width - kMargin * 2), 64},
-            model.headline, toybox::kDisplayFont, fui::TextAlign::Center, toybox::kLargeCut);
+  drawLabel(screen, fui::Rect{static_cast<int16_t>(body.x + kMargin), top, static_cast<int16_t>(body.width - kMargin * 2), 64}, model.headline, toybox::kDisplayFont, fui::TextAlign::Center);
   drawProse(screen,
             fui::Rect{static_cast<int16_t>(body.x + kMargin), static_cast<int16_t>(top + 88),
                       static_cast<int16_t>(body.width - kMargin * 2), 260},
@@ -327,10 +323,8 @@ void modeCard(toybox::Screen& screen, const fui::Rect& box, const char* title, c
   // tall card puts the name at the top and the line at the bottom with a hole
   // between them, and reads as an empty panel with two captions.
   const int16_t mid = static_cast<int16_t>(box.y + box.height / 2);
-  drawLabel(screen, fui::Rect{box.x, static_cast<int16_t>(mid - 44), box.width, 46}, title, toybox::kDisplayFont,
-            fui::TextAlign::Center, toybox::kLargeCut, ink);
-  drawLabel(screen, fui::Rect{box.x, static_cast<int16_t>(mid + 8), box.width, 34}, under, toybox::kSmallFont,
-            fui::TextAlign::Center, toybox::kButtonCut, ink);
+  drawLabel(screen, fui::Rect{box.x, static_cast<int16_t>(mid - 44), box.width, 46}, title, toybox::kDisplayFont, fui::TextAlign::Center, ink);
+  drawLabel(screen, fui::Rect{box.x, static_cast<int16_t>(mid + 8), box.width, 34}, under, toybox::kSmallFont, fui::TextAlign::Center, ink);
   screen.frame().hit(box, action, value);
 }
 
@@ -367,10 +361,8 @@ void buildMenu(toybox::Screen& screen, const MenuModel& model) {
   // kind of thing.
   const fui::Rect diffBox{left, rowsY, wide, rowH};
   screen.target().stroke(diffBox, fui::Paint::solid(fui::Color::Black), 1);
-  drawLabel(screen, fui::Rect{static_cast<int16_t>(left + 16), diffBox.y, 200, rowH}, "DIFFICULTY", toybox::kSmallFont,
-            fui::TextAlign::Left, toybox::kButtonCut);
-  drawLabel(screen, fui::Rect{left, diffBox.y, static_cast<int16_t>(wide - 16), rowH}, diff, toybox::kSmallFont,
-            fui::TextAlign::Right, toybox::kButtonCut);
+  drawLabel(screen, fui::Rect{static_cast<int16_t>(left + 16), diffBox.y, 200, rowH}, "DIFFICULTY", toybox::kSmallFont, fui::TextAlign::Left);
+  drawLabel(screen, fui::Rect{left, diffBox.y, static_cast<int16_t>(wide - 16), rowH}, diff, toybox::kSmallFont, fui::TextAlign::Right);
   screen.frame().hit(diffBox, ActionMenuRow, static_cast<int16_t>(MenuRow::Difficulty));
 
   // The door to the app's own settings. No value on the right: this row is a
@@ -379,15 +371,13 @@ void buildMenu(toybox::Screen& screen, const MenuModel& model) {
   // does exactly this.
   const fui::Rect settingsBox{left, static_cast<int16_t>(rowsY + rowH + rowGap), wide, rowH};
   screen.target().stroke(settingsBox, fui::Paint::solid(fui::Color::Black), 1);
-  drawLabel(screen, fui::Rect{static_cast<int16_t>(left + 16), settingsBox.y, 240, rowH}, "SETTINGS",
-            toybox::kSmallFont, fui::TextAlign::Left, toybox::kButtonCut);
+  drawLabel(screen, fui::Rect{static_cast<int16_t>(left + 16), settingsBox.y, 240, rowH}, "SETTINGS", toybox::kSmallFont, fui::TextAlign::Left);
   screen.frame().hit(settingsBox, ActionMenuRow, static_cast<int16_t>(MenuRow::Settings));
 
   if (model.packCount > 0) {
     char count[48];
     questionCount(count, sizeof(count), model.packCount, model.seenCount);
-    drawLabel(screen, fui::Rect{body.x, static_cast<int16_t>(footerTop(screen) + 20), body.width, 40}, count,
-              toybox::kSmallFont, fui::TextAlign::Center, toybox::kButtonCut);
+    drawLabel(screen, fui::Rect{body.x, static_cast<int16_t>(footerTop(screen) + 20), body.width, 40}, count, toybox::kSmallFont, fui::TextAlign::Center);
   }
 }
 
@@ -570,8 +560,7 @@ void buildChoice(toybox::Screen& screen, const ChoiceModel& model) {
       } else {
         screen.target().stroke(box, fui::Paint::solid(fui::Color::Black), static_cast<uint8_t>(isWrongPick ? 3 : 1));
       }
-      drawLabel(screen, box, model.option[i] != nullptr ? model.option[i] : "", toybox::kSmallFont,
-                fui::TextAlign::Center, toybox::kButtonCut, isCorrect ? fui::Color::White : fui::Color::Black);
+      drawLabel(screen, box, model.option[i] != nullptr ? model.option[i] : "", toybox::kSmallFont, fui::TextAlign::Center, isCorrect ? fui::Color::White : fui::Color::Black);
 
       // The player's own pick, marked so it cannot be missed. Until now the only
       // difference was a 3px stroke against a 1px one, and a cold tester read

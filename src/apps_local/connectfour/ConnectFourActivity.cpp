@@ -194,6 +194,8 @@ uint32_t ConnectFourActivity::surfaceMeaning() const {
 
 void ConnectFourActivity::loop() {
   namespace fui = freeink::ui;
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (c4::leavesApp(screen)) {
@@ -338,7 +340,7 @@ void ConnectFourActivity::loop() {
 }
 
 void ConnectFourActivity::render(RenderLock&&) {
-  if (screen == c4::Screen::Settings) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && screen == c4::Screen::Settings) interactions.setFocusedIndex(-1);
   namespace fui = freeink::ui;
 
   renderer.clearScreen();
@@ -386,6 +388,10 @@ void ConnectFourActivity::render(RenderLock&&) {
       model.selectedColumn = selectedColumn;
       model.review = screen == c4::Screen::Review;
       c4ui::buildBoard(surface, model);
+      if (sidebuttons::classic() && screen == c4::Screen::Board) {
+        const auto first = c4ui::slotRect(device, 0), last = c4ui::slotRect(device, 6);
+        frame.navigationGrid(fui::makeRect(first.x, first.y, last.right() - first.x, first.height), 7, 1);
+      }
       break;
     }
     case c4::Screen::Result: {
@@ -412,6 +418,6 @@ void ConnectFourActivity::render(RenderLock&&) {
   toybox::reportOverflow(interactions, "ConnectFour", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

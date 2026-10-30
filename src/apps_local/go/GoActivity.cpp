@@ -507,6 +507,14 @@ uint32_t GoActivity::surfaceMeaning() const {
 
 void GoActivity::loop() {
   namespace fui = freeink::ui;
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      interactions.coordinateEditing() && aimed >= 0) {
+    clearAim();
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (go::leavesApp(screen)) {
@@ -741,7 +749,7 @@ void GoActivity::loop() {
 }
 
 void GoActivity::render(RenderLock&&) {
-  if (screen == go::Screen::Settings) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && screen == go::Screen::Settings) interactions.setFocusedIndex(-1);
   namespace fui = freeink::ui;
 
   renderer.clearScreen();
@@ -843,11 +851,13 @@ void GoActivity::render(RenderLock&&) {
       break;
     }
   }
+  if (sidebuttons::classic() && (screen == go::Screen::Board || screen == go::Screen::Count))
+    frame.navigationGrid(goui::boardRect(device), game.size, game.size);
 
   interactionsReady = true;
   toybox::reportOverflow(interactions, "Go", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

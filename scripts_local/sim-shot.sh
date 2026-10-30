@@ -1,6 +1,6 @@
 #!/bin/bash
-# Drive the X4 Pro simulator with a scripted input sequence and capture
-# screenshots. Headless: needs no desktop-control permissions, so it works as a
+# Drive the simulator with a scripted input sequence and capture
+# screenshots. CROSSPOINT_SIM_DEVICE=x4c uses Classic's key-only profile.
 # regression check in CI or from an agent.
 #
 #   ./scripts/sim-shot.sh '<input-script>' '<screenshot-script>' [out-dir]
@@ -25,6 +25,16 @@ export CROSSPOINT_SIM_SD="$REPO/fs_agent"
 INPUT_SCRIPT="${1:?usage: sim-shot.sh '<input-script>' '<screenshot-script>' [out-dir]}"
 SHOT_SCRIPT="${2:-}"
 OUT_DIR="${3:-$REPO/qa-artifacts}"
+if [ "$ENV_NAME" = simulator_x4_classic ]; then
+  IFS=';' read -ra classic_events <<< "$INPUT_SCRIPT"
+  for event in "${classic_events[@]}"; do
+    action="${event#*:}"
+    case "${action%%:*}" in
+      BACK|ENTER|LEFT|RIGHT|UP|DOWN|POWER|QUIT) ;;
+      *) echo "Classic permits only BACK ENTER LEFT RIGHT UP DOWN POWER (and QUIT)" >&2; exit 2 ;;
+    esac
+  done
+fi
 
 seed_fs
 build

@@ -293,7 +293,7 @@ void FlashHistoryActivity::loop() {
     back();
     return;
   }
-  int x, y;
+  int x = 0, y = 0;
   if (!ready) return;
   const int swipe = interactions.routable() ? sidebuttons::swipeStep(mappedInput) : 0;
   const int keyDelta = sidebuttons::shortStep(mappedInput);
@@ -311,12 +311,16 @@ void FlashHistoryActivity::loop() {
     e.action = flashui::Page;
     e.value = static_cast<int16_t>(delta);
   } else if (!e.action) {
-    const bool held = view == View::Cards && mappedInput.wasScreenLongPress(x, y);
+    const bool buttonHeld = sidebuttons::classic() && view == View::Cards && interactions.hasButtonFocus() &&
+                            mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, 500);
+    if (buttonHeld) mappedInput.suppressNextRelease(MappedInputManager::Button::Confirm);
+    const bool held = buttonHeld || (view == View::Cards && mappedInput.wasScreenLongPress(x, y));
     if (!held && !sidebuttons::poll(interactions, mappedInput, x, y)) return;
-    if (held) mappedInput.swallowCurrentTouch();
+    if (held && !buttonHeld) mappedInput.swallowCurrentTouch();
     fui::InputSnapshot tap;
     tap.longPress = held;
-    tap.touchReleased = true;
+    tap.touchReleased = !buttonHeld;
+    tap.confirm = buttonHeld;
     tap.touchX = x;
     tap.touchY = y;
     e = sidebuttons::route(interactions, tap, mappedInput, *this);

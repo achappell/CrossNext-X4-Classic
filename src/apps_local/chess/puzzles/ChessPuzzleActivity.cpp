@@ -163,6 +163,14 @@ uint32_t ChessPuzzleActivity::surfaceMeaning() const {
 }
 void ChessPuzzleActivity::loop() {
   RenderLock lock(*this);
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      interactions.coordinateEditing() && session.selected >= 0) {
+    session.selected = -1;
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (dirty && millis() - lastSave >= 1500) save();
   if (view == chesspuzzleui::View::Board && session.status == chesspuzzle::Status::Thinking) {
     if (ready && surfaceRevealed()) {
@@ -254,17 +262,19 @@ void ChessPuzzleActivity::loop() {
   requestUpdate();
 }
 void ChessPuzzleActivity::render(RenderLock&&) {
-  if (view != chesspuzzleui::View::Board) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view != chesspuzzleui::View::Board) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);
   const fui::InputSnapshot noInput{};
   toybox::Frame frame(target, target.deviceContext(), noInput, interactions, nullptr, toybox::headerStatus(renderer));
   toybox::Screen screen(frame);
-  chesspuzzleui::build(screen, {&session, &progress, view, group, index, page, saveFailed, invalidNumber, pieceDesign},
-                       work);
+  chesspuzzleui::build(
+      screen, {&session, &progress, view, group, index, page, saveFailed, invalidNumber, pieceDesign, sidebuttons::classic()},
+      work);
   ready = true;
-  if (view == chesspuzzleui::View::Select) interactions.limitButtonActions({chesspuzzleui::Pick});
+  if (!sidebuttons::classic() && view == chesspuzzleui::View::Select)
+    interactions.limitButtonActions({chesspuzzleui::Pick});
   toybox::reportOverflow(interactions, "ChessPuzzles", &renderer);
   renderer.displayBuffer();
 }

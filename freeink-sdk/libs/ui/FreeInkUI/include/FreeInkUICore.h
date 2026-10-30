@@ -15,6 +15,7 @@
 #include <initializer_list>
 #include <string.h>
 
+#include <algorithm>
 #include <atomic>
 
 namespace freeink {
@@ -1069,7 +1070,8 @@ public:
   State stateFor(ActionId action, int16_t value, State base) const override {
     if (action == NO_ACTION) return base;
     State state = base;
-    if (buttonFocus_ && focusAction_ != NO_ACTION) {
+    // Explicit chrome paints focus separately from semantic choice/check state.
+    if (buttonFocus_ && focusAction_ != NO_ACTION && !explicitCoordinates_) {
       state = static_cast<State>(state & ~(StateSelected | StateChecked | StateFocused));
       if (focusAction_ == action && focusValue_ == value) state |= StateFocused;
     }
@@ -1099,10 +1101,18 @@ public:
   }
 
   bool buttonSelected(ActionId action, int16_t value, bool selected = false) const {
-    if (!buttonFocus_ || focusAction_ == NO_ACTION) return selected;
+    if (explicitCoordinates_ || !buttonFocus_ || focusAction_ == NO_ACTION) return selected;
     if (focusAction_ == action) return focusValue_ == value;
     return false;
   }
+
+  // Where the cursor actually is, for screens that paint their own selection.
+  // buttonSelected() collapses to the caller's default once explicit
+  // coordinates are on, which is every Classic screen, so it cannot answer
+  // this; a screen drawing its own highlight has no other way to learn that
+  // the routed target moved.
+  ActionId focusedAction() const { return static_cast<ActionId>(focusAction_.load(std::memory_order_relaxed)); }
+  int16_t focusedValue() const { return static_cast<int16_t>(focusValue_.load(std::memory_order_relaxed)); }
 
   void clear() {
     count_[building_] = 0;
@@ -1115,8 +1125,99 @@ public:
   bool overflowed() const { return overflowed_[building_]; }
   const Interaction *data() const { return interactions_[building_]; }
   int16_t focusedIndex() const { return focused_; }
-  uint32_t focusPosition() const { return (uint32_t(uint16_t(focused_ + 1)) << 16) | uint16_t(subFocus_); }
+  uint32_t focusPosition() const {
+    return (uint32_t(uint16_t(focused_ + 1)) << 16) | uint16_t(subFocus_) | (coordinateEditing() ? 0x8000u : 0u);
+  }
   bool hasButtonFocus() const { return buttonFocus_ && focused_ >= 0; }
+  // Explicit coordinate editing is opt-in: pointer/Pro callers retain their
+  // existing linear grid focus. Button-only chrome enters on Confirm without
+  // activating a cell, and Back can leave the editor before leaving the view.
+  void setExplicitCoordinateNavigation(bool enabled) { explicitCoordinates_ = enabled; }
+  bool coordinateFocused() const { return coordinateFocusedFor(building_); }
+  bool enterCoordinateEditor() {
+    if (!coordinateFocused()) return false;
+    editingCoordinates_ = true;
+    return true;
+  }
+  bool coordinateEditing() const { return editingCoordinates_ && coordinateFocused(); }
+  bool leaveCoordinateEditor() {
+    const bool editing = coordinateEditing();
+    editingCoordinates_ = false;
+    return editing;
+  }
+  bool moveCoordinateCursor(int dx, int dy) {
+    if (!coordinateEditing()) return false;
+    const int16_t current = focusIndexFor(building_);
+    const auto &entry = interactions_[building_][current];
+    const int previous = subFocus_;
+    const int columns = entry.navigationColumns, rows = entry.navigationRows;
+    if (!columns || !rows) return false;
+    const int column = previous % columns, row = previous / columns;
+    const int next = previous + dx + dy * columns;
+    if (!(dx && columns == 1) && !(dy && rows == 1) &&
+        column + dx >= 0 && column + dx < columns && row + dy >= 0 && row + dy < rows) {
+      subFocus_ = next;
+      return next != previous;
+    }
+    // Irregular keyboards and card piles reuse several bounded grids. Move to
+    // the closest cell on the requested axis, without dispatching a pointer.
+    const Rect from = focusRectFor(entry, previous);
+    const int x = from.x + from.width / 2, y = from.y + from.height / 2;
+    int16_t best = -1, bestCell = 0;
+    int64_t distance = INT64_MAX;
+    for (int16_t n = 0; n < static_cast<int16_t>(count_[building_]); ++n) {
+      const auto &candidate = interactions_[building_][n];
+      if (n == current || !focusable(building_, n) || !acceptsInput(candidate.inputMask, InputCoordinates)) continue;
+      const int columns = candidate.navigationColumns, rows = candidate.navigationRows;
+      if (!columns || !rows || candidate.rect.empty()) continue;
+      const int col = std::max(0, std::min(columns - 1, (x - candidate.rect.x) * columns / candidate.rect.width));
+      const int row = std::max(0, std::min(rows - 1, (y - candidate.rect.y) * rows / candidate.rect.height));
+      const int16_t cell = row * columns + col;
+      const Rect to = focusRectFor(candidate, cell);
+      if (!acceptsInput(entry.inputMask, InputTouch) &&
+          ((dx && (to.bottom() <= from.y || to.y >= from.bottom())) ||
+           (dy && (to.right() <= from.x || to.x >= from.right())))) continue;
+      const int deltaX = to.x + to.width / 2 - x, deltaY = to.y + to.height / 2 - y;
+      if ((dx && deltaX * dx <= 0) || (dy && deltaY * dy <= 0)) continue;
+      const int64_t score = int64_t(deltaX) * deltaX + int64_t(deltaY) * deltaY;
+      if (score < distance) { best = n; bestCell = cell; distance = score; }
+    }
+    if (best < 0) {
+      // A one-column grid still offers bounded bottom-pair traversal.
+      if (dx && entry.navigationColumns == 1 && entry.navigationRows > 1 &&
+          next >= 0 && next < navigationCells(entry)) {
+        subFocus_ = next;
+        return next != previous;
+      }
+      return false;
+    }
+    focused_ = best;
+    focusAction_ = interactions_[building_][best].action;
+    focusValue_ = interactions_[building_][best].value;
+    subFocus_ = bestCell;
+    return true;
+  }
+  void coordinateAction(ActionId action) {
+    for (size_t n = 0; n < count_[building_]; ++n) {
+      auto &entry = interactions_[building_][n];
+      if (entry.action != action || acceptsInput(entry.inputMask, InputPointerOnly)) continue;
+      if (!acceptsInput(entry.inputMask, InputCoordinates)) {
+        entry.inputMask |= InputCoordinates;
+        entry.navigationColumns = entry.navigationRows = 1;
+      }
+    }
+    if (!explicitCoordinates_ || !editingCoordinates_ || focusAction_ != action) return;
+    const int16_t current = focusIndexFor(building_);
+    if (current >= 0 && focusable(building_, current)) return;
+    // A moved card/tile can disappear from the rebuilt set of legal targets.
+    // Keep editing its action group instead of silently returning to chrome.
+    for (int16_t n = 0; n < static_cast<int16_t>(count_[building_]); ++n) {
+      if (interactions_[building_][n].action != action || !focusable(building_, n)) continue;
+      setFocusedIndex(n);
+      return;
+    }
+    editingCoordinates_ = false;
+  }
   bool buttonFocusRect(Rect &rect) const {
     const auto slot = published_.load(std::memory_order_acquire);
     const int16_t index = focusIndexFor(slot);
@@ -1127,11 +1228,13 @@ public:
     return true;
   }
   void paintButtonFocus(DrawTarget &target) const {
-    const int16_t index = focused_.load(std::memory_order_relaxed);
+    const int16_t index = focusIndexFor(building_);
     if (!buttonFocus_.load(std::memory_order_relaxed) || index < 0 || index >= static_cast<int16_t>(count_[building_])) return;
     const auto &entry = interactions_[building_][index];
-    if (!acceptsInput(entry.inputMask, InputCoordinates) || hasState(entry.state, StateDisabled)) return;
-    const auto cell = focusRectFor(entry, subFocus_.load(std::memory_order_relaxed));
+    const bool coordinates = acceptsInput(entry.inputMask, InputCoordinates);
+    if ((!coordinates && !explicitCoordinates_) || hasState(entry.state, StateDisabled)) return;
+    const auto cell = coordinates && (!explicitCoordinates_ || editingCoordinates_)
+                          ? focusRectFor(entry, subFocus_.load(std::memory_order_relaxed)) : entry.rect;
     const int edge = cell.width < cell.height ? cell.width : cell.height;
     if (edge <= 0) return;
     const int inset = edge > 4 ? 2 : edge > 2 ? 1 : 0;
@@ -1148,9 +1251,11 @@ public:
   }
   void setFocusedIndex(int16_t index) {
     subFocus_ = 0;
-    if (index >= 0 && index < static_cast<int16_t>(count_[building_]))
+    if (index >= 0 && index < static_cast<int16_t>(count_[building_])) {
       focused_ = index;
-    else {
+      focusAction_ = interactions_[building_][index].action;
+      focusValue_ = interactions_[building_][index].value;
+    } else {
       focused_ = -1;
       buttonFocus_ = false;
       focusAction_ = NO_ACTION;
@@ -1254,6 +1359,8 @@ private:
   std::atomic<bool> buttonFocus_{false};
   std::atomic<int32_t> subFocus_{0};
   std::atomic<int32_t> active_{-1};
+  std::atomic<bool> explicitCoordinates_{false};
+  std::atomic<bool> editingCoordinates_{false};
   // Mirrors the last routed frame's contact, so its opening frame is visible.
   bool contactHeld_ = false;
   // Last x a bound drag dispatched from, -1 until the contact drags. A
@@ -1278,8 +1385,14 @@ private:
 
   int16_t focusIndexFor(uint8_t slot) const {
     if (buttonFocus_ && focusAction_ != NO_ACTION) {
+      const int16_t remembered = focused_.load(std::memory_order_relaxed);
+      if (remembered >= 0 && remembered < static_cast<int16_t>(count_[slot]) &&
+          interactions_[slot][remembered].action == focusAction_.load() &&
+          interactions_[slot][remembered].value == focusValue_.load() &&
+          !acceptsInput(interactions_[slot][remembered].inputMask, InputPointerOnly)) return remembered;
       for (int16_t n = 0; n < static_cast<int16_t>(count_[slot]); ++n)
-        if (interactions_[slot][n].action == focusAction_.load() && interactions_[slot][n].value == focusValue_.load()) return n;
+        if (interactions_[slot][n].action == focusAction_.load() && interactions_[slot][n].value == focusValue_.load() &&
+            !acceptsInput(interactions_[slot][n].inputMask, InputPointerOnly)) return n;
       return -1;
     }
     return focused_.load(std::memory_order_relaxed);
@@ -1348,7 +1461,7 @@ private:
       return;
     }
     int16_t start = focusIndexFor(slot);
-    if (start >= 0 && start < static_cast<int16_t>(slotCount)) {
+    if ((!explicitCoordinates_ || editingCoordinates_) && start >= 0 && start < static_cast<int16_t>(slotCount)) {
       const int candidate = subFocus_ + delta;
       if (candidate >= 0 && candidate < navigationCells(interactions_[slot][start])) {
         subFocus_ = static_cast<int16_t>(candidate);
@@ -1358,7 +1471,8 @@ private:
     if (start < 0 || start >= static_cast<int16_t>(slotCount))
       start = -1;
     const auto before = [](const Interaction &a, const Interaction &b) {
-      return a.rect.y < b.rect.y || (a.rect.y == b.rect.y && a.rect.x < b.rect.x);
+      return a.rect.y < b.rect.y ||
+             (a.rect.y == b.rect.y && (a.rect.x < b.rect.x || (a.rect.x == b.rect.x && &a < &b)));
     };
     if (start >= 0 && start < static_cast<int16_t>(slotCount) &&
         (interactions_[slot][start].action != focusAction_.load() ||
@@ -1389,10 +1503,17 @@ private:
                        interaction.state};
   }
 
+  bool coordinateFocusedFor(uint8_t slot) const {
+    const int16_t index = focusIndexFor(slot);
+    return buttonFocus_ && index >= 0 && index < static_cast<int16_t>(count_[slot]) &&
+           acceptsInput(interactions_[slot][index].inputMask, InputCoordinates);
+  }
+
   ActionEvent routeAgainst(uint8_t slot, const InputSnapshot &input) {
     ActionEvent event{};
     const size_t slotCount = count_[slot];
     if (buttonFocus_) focused_ = focusIndexFor(slot);
+    if (!coordinateFocusedFor(slot)) editingCoordinates_ = false;
     if (input.focusNext || input.focusPrev) buttonFocus_ = true;
     if ((input.touchPressed || input.touchReleased) && input.touchX >= 0 && input.touchY >= 0) {
       buttonFocus_ = false;
@@ -1521,12 +1642,23 @@ private:
       if (!hasState(focused.state, StateDisabled) &&
           (acceptsInput(focused.inputMask, InputConfirm) ||
            (buttonFocus_ && acceptsInput(focused.inputMask, InputTouch)))) {
+        if (explicitCoordinates_ && acceptsInput(focused.inputMask, InputCoordinates) && !editingCoordinates_) {
+          editingCoordinates_ = true;
+          return {};
+        }
         if (acceptsInput(focused.inputMask, InputCoordinates)) {
           const Rect rect = focusRectFor(focused, subFocus_.load(std::memory_order_relaxed));
-          const auto target = findTouch(slot, rect.x + rect.width / 2, rect.y + rect.height / 2, InputTouch);
-          return target >= 0 ? eventFor(slot, target) : ActionEvent{};
+          const auto target = findTouch(slot, rect.x + rect.width / 2, rect.y + rect.height / 2,
+                                        input.longPress ? InputLongPress : InputTouch);
+          if (target < 0) return {};
+          auto selected = eventFor(slot, target);
+          selected.longPress = input.longPress;
+          return selected;
         }
-        return eventFor(slot, focused_);
+        if (input.longPress && !acceptsInput(focused.inputMask, InputLongPress)) return {};
+        auto selected = eventFor(slot, focused_);
+        selected.longPress = input.longPress;
+        return selected;
       }
     }
 
@@ -1648,9 +1780,10 @@ public:
         Interaction{rect, action, value, inputMask, state, 0});
   }
 
-  bool navigationGrid(Rect rect, uint8_t columns, uint8_t rows) {
+  // Optional semantic identity keeps an irregular region stable when sibling hits change.
+  bool navigationGrid(Rect rect, uint8_t columns, uint8_t rows, ActionId action = NO_ACTION, int16_t value = 0) {
     if (!columns || !rows || rect.width <= 0 || rect.height <= 0 || int(columns) * rows > 32767) return false;
-    return interactions_.addInteraction(Interaction{rect, NO_ACTION, 0,
+    return interactions_.addInteraction(Interaction{rect, action, value,
       InputFocus | InputConfirm | InputCoordinates, StateNormal, 0, columns, rows});
   }
 
@@ -1661,6 +1794,9 @@ public:
   bool buttonSelected(ActionId action, int16_t value, bool selected = false) const {
     return interactions_.buttonSelected(action, value, selected);
   }
+
+  ActionId focusedAction() const { return interactions_.focusedAction(); }
+  int16_t focusedValue() const { return interactions_.focusedValue(); }
 
   State stateFor(ActionId action, int16_t value = 0,
                  State base = StateNormal) const {

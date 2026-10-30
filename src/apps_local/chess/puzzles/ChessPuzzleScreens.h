@@ -29,6 +29,7 @@ struct Model {
   bool saveFailed = false;
   bool invalidNumber = false;
   chessstyle::Design pieceDesign = chessstyle::kDefault;
+  bool classicControls = false;
 };
 struct Work {
   freeink::ui::ButtonProps button;

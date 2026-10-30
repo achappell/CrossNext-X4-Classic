@@ -138,7 +138,7 @@ jobs:
       # RELEASE images rather than the dev ones is also strictly better: it is
       # the stack of the binary a user actually runs.
       - name: Build everything
-        run: PLATFORMIO_BUILD_FLAGS="-fstack-usage -fcallgraph-info=su" pio run -e gh_release_x4pro -e gh_release_sticky -e gh_release_papermono -e simulator_x4_pro
+        run: PLATFORMIO_BUILD_FLAGS="-fstack-usage -fcallgraph-info=su" pio run -e gh_release_x4pro -e gh_release_sticky -e gh_release_papermono -e simulator_x4_pro -e simulator_x4_classic
 
       # v1.0.0 shipped a render task that needed 8016 bytes of an 8192-byte
       # stack and crashed on the first device that ever ran it. Nothing here
@@ -198,6 +198,8 @@ jobs:
       # here fails a suite there.
       - name: Host tests
         run: |
+          # Reuse this invocation's Classic build; do not trigger checksum cleanup here.
+          export CLASSIC_NAV_PROGRAM="$PWD/.pio/build/simulator_x4_classic/program"
           for suite in host-tests/*/run.sh; do
             # relwatch has its own job. It runs a real postgres in docker, and
             # sharing a runner with a 20-minute cross-compile starved it: the

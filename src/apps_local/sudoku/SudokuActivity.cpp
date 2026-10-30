@@ -310,6 +310,8 @@ uint32_t SudokuActivity::surfaceMeaning() const {
 
 void SudokuActivity::loop() {
   namespace fui = freeink::ui;
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
 
   tickClock();
 
@@ -403,7 +405,10 @@ void SudokuActivity::loop() {
       if (!surfaceRevealed()) return;
       if (entryTool == sk::EntryTool::Check) return;
       notice = nullptr;
-      if (!sk::applyEntryTool(game, cell, entryTool)) return;
+      if (notesMode && entryTool == sk::EntryTool::Digit) {
+        if (game.solvedFlag) return;
+        sk::holdCell(game, cell);
+      } else if (!sk::applyEntryTool(game, cell, entryTool)) return;
       selectedCell = cell;
       requestUpdate();
       return;
@@ -519,6 +524,12 @@ void SudokuActivity::loop() {
       requestUpdate();
       return;
 
+    case sudokuui::ActionNotes:
+      if (!sidebuttons::classic() || game.solvedFlag) return;
+      notesMode = !notesMode;
+      entryTool = sk::EntryTool::Digit;
+      requestUpdate();
+      return;
     case sudokuui::ActionUndo:
       if (sk::undoOnce(game)) {
         notice = nullptr;
@@ -600,6 +611,7 @@ void SudokuActivity::render(RenderLock&&) {
     case sk::Screen::HowTo: {
       sudokuui::HowToModel model;
       model.page = howToPage;
+      model.classicControls = sidebuttons::classic();
       sudokuui::buildHowTo(surface, model);
       break;
     }
@@ -610,10 +622,15 @@ void SudokuActivity::render(RenderLock&&) {
       model.generating = generating;
       model.selectedCell = selectedCell;
       model.notesMode = notesMode;
+      model.classicControls = sidebuttons::classic();
       model.entryTool = entryTool;
       model.showMatches = showMatches;
       model.notice = notice;
       sudokuui::buildBoard(surface, model);
+      if (sidebuttons::classic()) {
+        const auto first = sudokuui::cellRect(device, 0), last = sudokuui::cellRect(device, 80);
+        frame.navigationGrid(fui::makeRect(first.x, first.y, last.right() - first.x, last.bottom() - first.y), 9, 9);
+      }
       break;
     }
     case sk::Screen::Result: {
@@ -634,11 +651,11 @@ void SudokuActivity::render(RenderLock&&) {
   }
 
   interactionsReady = true;
-  if (screen == sk::Screen::Board)
+  if (!sidebuttons::classic() && screen == sk::Screen::Board)
     interactions.limitButtonActions({sudokuui::ActionDigit, sudokuui::ActionErase, sudokuui::ActionHint});
   toybox::reportOverflow(interactions, "Sudoku", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
 void IRAM_ATTR HalGPIO::signalActivityFromIsr(void* context) {
   auto* self = static_cast<HalGPIO*>(context);
   BaseType_t higherPriorityTaskWoken = pdFALSE;
@@ -59,13 +59,13 @@ void HalGPIO::attachActivityInterrupts() {
 #endif
 
 void HalGPIO::signalActivity() {
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
   if (activitySemaphore) xSemaphoreGive(activitySemaphore);
 #endif
 }
 
 void HalGPIO::waitForActivity(const uint32_t timeoutMs) {
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
   if (activityInterruptsReady) {
     const TickType_t ticks = timeoutMs == 0 ? 0 : std::max<TickType_t>(1, pdMS_TO_TICKS(timeoutMs));
     xSemaphoreTake(activitySemaphore, ticks);
@@ -77,7 +77,7 @@ void HalGPIO::waitForActivity(const uint32_t timeoutMs) {
 }
 
 uint32_t HalGPIO::nextInputServiceDelayMs(const uint32_t maximum) const {
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
   if (activityInterruptsReady) return inputMgr.nextServiceDelayMs(maximum);
 #endif
   return std::min<uint32_t>(maximum, 10);

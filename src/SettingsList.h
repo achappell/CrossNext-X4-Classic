@@ -682,10 +682,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     // The reader menu style stays available on button boards (the toolbar
     // chrome is button-navigable); only the touch controls are hidden.
     v.erase(std::remove_if(v.begin(), v.end(),
-                           [](const SettingInfo& s) {
+                           [forPersistence](const SettingInfo& s) {
                              return s.nameId == StrId::STR_TOUCH_READER_CONTROLS ||
                                     s.nameId == StrId::STR_NEXT_PAGE_GESTURE ||
-                                    s.nameId == StrId::STR_PREV_PAGE_GESTURE;
+                                    s.nameId == StrId::STR_PREV_PAGE_GESTURE ||
+                                    (BoardConfig::isX4Classic() && !forPersistence && (s.nameId == StrId::STR_SIDE_LEFT_ACTION ||
+                                                        s.nameId == StrId::STR_SIDE_RIGHT_ACTION));
                            }),
             v.end());
   }

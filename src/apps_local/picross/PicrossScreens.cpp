@@ -442,7 +442,9 @@ void buildBoard(toybox::Screen& screen, const BoardModel& model, Layout& layout)
     hint = fui::makeRect(x, y + 156, controlW, 52);
     body.width -= controlW + 16;
   }
-  fittext::draw(screen.target(), hint, tr(STR_PICROSS_TOUCH_HINT), 3, wide ? 2 : 1, fui::TextAlign::Center);
+  fittext::draw(screen.target(), hint,
+                model.classicControls ? tr(STR_BUTTON_PICROSS_TOOL) : tr(STR_PICROSS_TOUCH_HINT),
+                3, wide ? 2 : 1, fui::TextAlign::Center);
 
   // The mistake count, the visible penalty. On the left, in plain words.
   char mistakes[kMistakeChars];
@@ -705,6 +707,8 @@ void layOutGrid(toybox::Screen& screen, const MenuModel& model, const fui::Rect&
   layout.pageCount = static_cast<int16_t>(pageCount);
   layout.pageOnScreen = static_cast<int16_t>(page);
   screen.frame().hit(layout.grid, ActionPick, -1, fui::InputTouch | fui::InputPointerOnly);
+  if (model.coordinatePicker)
+    screen.frame().navigationGrid(layout.grid, layout.cols, layout.rows);
 
   for (int k = 0; k < n; ++k) {
     const int i = first + k;
@@ -712,7 +716,8 @@ void layOutGrid(toybox::Screen& screen, const MenuModel& model, const fui::Rect&
     const int c = k % g.cols;
     const fui::Rect box =
         fui::makeRect(static_cast<int16_t>(left + c * pitch), static_cast<int16_t>(top + r * pitch), g.cell, g.cell);
-    screen.frame().hit(box, ActionPick, i);
+    screen.frame().hit(box, ActionPick, i,
+                       model.coordinatePicker ? fui::InputTouch | fui::InputPointerOnly : fui::InputDefault);
     const bool solved = model.progress != nullptr && model.progress->isSolved(i);
     drawTile(screen, box, i, picross::kPuzzles[i], solved, i == model.inProgressIndex, i == model.selectedIndex);
   }
@@ -885,7 +890,7 @@ void buildSizes(toybox::Screen& screen, const MenuModel& model) {
     screen.frame().hit(box, ActionTab, n);
   }
 }
-void buildHelp(toybox::Screen& screen, int page) {
+void buildHelp(toybox::Screen& screen, int page, bool classicControls) {
   page = std::clamp(page, 0, 3);
   frontdoor::begin(screen, "PICROSS");
   dashboard::text(screen, screen.takeTop(screen.body().width > screen.body().height ? 34 : 48, 8), tr(STR_PICROSS_HOW),
@@ -938,7 +943,7 @@ void buildHelp(toybox::Screen& screen, int page) {
       guideui::text(screen, desc, I18N.get(copy[n]), 3, wide ? fui::TextAlign::Center : fui::TextAlign::Left, 4);
     }
     dashboard::text(screen, fui::makeRect(content.x, content.bottom() - 32, content.width, 32),
-                    tr(STR_PICROSS_TOUCH_HINT), 3);
+                    classicControls ? tr(STR_BUTTON_PICROSS_TOOL) : tr(STR_PICROSS_TOUCH_HINT), 3);
   } else {
     const auto copy = wide ? fui::makeRect(content.x, content.y, content.width / 2 - 12, content.height - 40)
                            : fui::makeRect(content.x, content.y, content.width, 112);

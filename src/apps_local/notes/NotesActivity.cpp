@@ -638,7 +638,6 @@ void NotesActivity::askLine() {
 // --- Typing from a phone -------------------------------------------------
 
 void NotesActivity::startPhone() {
-#ifndef SIMULATOR
   // NEVER launch the picker unconditionally: WifiSelectionActivity::startWifiScan
   // calls WiFi.disconnect() on every path, so an unguarded launch drops a
   // working association and shows a redundant chooser. Four other apps guard it
@@ -655,7 +654,6 @@ void NotesActivity::startPhone() {
                            });
     return;
   }
-#endif
 
   // Developer Mode holds 80, 81 and UDP 8134 for as long as its toggle is on,
   // and Mario keeps a device on it. Two binds on one port fail in a way that
@@ -740,12 +738,19 @@ void NotesActivity::onExit() {
 // --- Input ---------------------------------------------------------------
 
 void NotesActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("APP-NAV", "Navigation queue full");
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(), sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("APP-NAV", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
   sectionnav::Input::Event navCommand{};
-  const bool hasNavCommand = navigation.pop(navCommand);
+  const bool hasNavCommand =
+      (navigation.backPending() || (interactionsReady_ && surfaceRevealed())) && navigation.pop(navCommand);
+  if (hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Focus) {
+    sidebuttons::focus(interactions_, navCommand.amount, *this);
+    return;
+  }
   const bool navBack = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Back;
+  const bool navConfirm = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Confirm;
   const int navStep = hasNavCommand && (navCommand.kind == sectionnav::Input::Kind::Step ||
                                         navCommand.kind == sectionnav::Input::Kind::Section)
                           ? navCommand.amount
@@ -829,17 +834,22 @@ void NotesActivity::loop() {
     }
   }
 
-  int x = 0;
-  int y = 0;
-  // Interactions::route() refuses a tap routed against a table the panel has
-  // not shown yet, which is what stops a tap aimed at the screen underneath
-  // from landing on the one that replaced it during a 0.3-2s repaint.
-  if (!sidebuttons::poll(interactions_, mappedInput, x, y, !todo) || !interactionsReady_ || !surfaceRevealed()) return;
-  fui::InputSnapshot input{};
-  input.touchReleased = true;
-  input.touchX = static_cast<int16_t>(x);
-  input.touchY = static_cast<int16_t>(y);
-  const fui::ActionEvent action = sidebuttons::route(interactions_, input, mappedInput, *this, !todo);
+  if (!interactionsReady_ || !surfaceRevealed()) return;
+  fui::ActionEvent action{};
+  if (navConfirm) {
+    action = sidebuttons::confirm(interactions_, *this);
+  } else {
+    // A current release may belong to a command still waiting behind an older one.
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return;
+    int x = 0;
+    int y = 0;
+    if (!sidebuttons::poll(interactions_, mappedInput, x, y, !todo)) return;
+    fui::InputSnapshot input{};
+    input.touchReleased = true;
+    input.touchX = static_cast<int16_t>(x);
+    input.touchY = static_cast<int16_t>(y);
+    action = sidebuttons::route(interactions_, input, mappedInput, *this, !todo);
+  }
 
   switch (action.action) {
     case notesui::ActionSort:
@@ -948,7 +958,7 @@ void NotesActivity::loop() {
 // --- Render --------------------------------------------------------------
 
 void NotesActivity::render(RenderLock&&) {
-  if (todo) interactions_.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && todo) interactions_.setFocusedIndex(-1);
   renderer.clearScreen();
   fui::GfxRendererTarget target = toybox::makeTarget(renderer);
   target.setFont(4, toybox::kLibraryFontId);
@@ -989,6 +999,7 @@ void NotesActivity::render(RenderLock&&) {
       model.isList = !openIsPage();
       model.shownAsleep = isShownAsleep();
       model.todo = todo;
+      model.classic = sidebuttons::classic();
       notesui::buildMenu(screen, model);
       break;
     }

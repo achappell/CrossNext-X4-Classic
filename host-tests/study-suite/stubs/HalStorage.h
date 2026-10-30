@@ -61,6 +61,13 @@ class HalFile : public Print {
     return true;
   }
   bool seek64(uint64_t n) { return seekSet(size_t(n)); }
+  bool seekCur(int64_t offset) {
+    if (offset < 0) {
+      const uint64_t step = uint64_t(-(offset + 1)) + 1;
+      return step <= cursor && seekSet(cursor - step);
+    }
+    return uint64_t(offset) <= size() - cursor && seekSet(cursor + uint64_t(offset));
+  }
   int available() { return *this ? int(size() - cursor) : 0; }
   size_t position() { return cursor; }
   int read(void* out, size_t n) {

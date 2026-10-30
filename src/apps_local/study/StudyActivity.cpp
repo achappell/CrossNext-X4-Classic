@@ -988,6 +988,7 @@ void StudyActivity::undo() {
 }
 
 void StudyActivity::loop() {
+  if (view_ == View::Image && sidebuttons::cancelEditor(interactions_, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (view_ == View::SyncFlow) {
       view_ = deckCount_ > 0 ? View::Deck : View::NoDeck;
@@ -1155,46 +1156,19 @@ void StudyActivity::loop() {
       requestUpdate();
       return;
     }
-    if (!sidebuttons::hasActivation(tapX, tapY)) return;
-    const auto layout = studyui::cardLayout(toybox::makeTarget(renderer).deviceContext(), face_ == Face::Answer,
-                                            undo_.valid, cardHasImage());
-    const auto contains = [tapX, tapY](const fui::Rect& r) {
-      return tapX >= r.x && tapX < r.right() && tapY >= r.y && tapY < r.bottom();
-    };
-    if (cardTextPages_ > 1 && contains(layout.pager)) {
-      const auto g = pageui::layout(layout.pager);
-      if (contains(g.before)) cardTextPage_ = std::max(0, cardTextPage_ - 1);
-      if (contains(g.after)) cardTextPage_ = std::min(cardTextPages_ - 1, cardTextPage_ + 1);
-      requestUpdate();
-      return;
-    }
-    if (face_ == Face::Answer && contains(layout.summary)) {
+    if (event.action == flashui::Question && face_ == Face::Answer) {
       face_ = Face::Question;
       cardTextPage_ = 0;
       requestUpdate();
-      return;
-    }
-    if (cardHasImage() && (contains(layout.photo) || (!cardPlainText()[0] && contains(layout.content)))) {
+    } else if (event.action == flashui::Photo && cardHasImage()) {
       openImage();
-      return;
+    } else if (event.action == flashui::Undo && face_ == Face::Question && undo_.valid) {
+      undo();
+    } else if (event.action == flashui::Reveal && face_ == Face::Question) {
+      face_ = Face::Answer;
+      cardTextPage_ = 0;
+      requestUpdate();
     }
-    if (face_ == Face::Question) {
-      if (undo_.valid && contains(layout.undo)) {
-        undo();
-        return;
-      }
-      if (contains(layout.reveal)) {
-        face_ = Face::Answer;
-        cardTextPage_ = 0;
-        requestUpdate();
-      }
-      return;
-    }
-    for (int n = 0; n < 4; ++n)
-      if (contains(layout.ratings[n])) {
-        grade(static_cast<study::Rating>(n + 1));
-        return;
-      }
     return;
   }
   if (!sidebuttons::hasActivation(tapX, tapY)) return;
@@ -1586,8 +1560,31 @@ void StudyActivity::loadZoomImage() {
 void StudyActivity::imageInput() {
   RenderLock lock;
   if (!interactionsReady_ || !interactions_.routable()) return;
-  const auto snapshot = touchSnapshotFrom(mappedInput);
-  const auto event = interactions_.route(snapshot);
+  auto snapshot = touchSnapshotFrom(mappedInput);
+  if (sidebuttons::classic()) {
+    if (interactions_.coordinateEditing()) {
+      if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+        interactions_.leaveCoordinateEditor();
+        requestUpdate();
+        return;
+      }
+      using Button = MappedInputManager::Button;
+      const int dx = mappedInput.wasReleased(Button::ScreenRight) ? 1 : mappedInput.wasReleased(Button::ScreenLeft) ? -1 : 0;
+      const int dy = mappedInput.wasReleased(Button::ScreenDown) ? 1 : mappedInput.wasReleased(Button::ScreenUp) ? -1 : 0;
+      if (dx || dy) {
+        const auto area = studyui::imageViewport(toybox::makeTarget(renderer).deviceContext(), imageView_.zoom);
+        if (imageView_.zoom && study::panImageThird(activeImage(), area.width, area.height, imageView_, dx, dy))
+          requestUpdate();
+        return;
+      }
+    }
+    int x = 0, y = 0;
+    if (!sidebuttons::poll(interactions_, mappedInput, x, y)) return;
+    snapshot.touchReleased = true;
+    snapshot.touchX = x;
+    snapshot.touchY = y;
+  }
+  const auto event = sidebuttons::route(interactions_, snapshot, mappedInput, *this, sidebuttons::classic());
   if (event.action == studyui::ImagePan && snapshot.touchHeld && imageView_.zoom) {
     if (imageDragging_) {
       const int dx = snapshot.touchX - imageDragX_, dy = snapshot.touchY - imageDragY_;
@@ -1645,6 +1642,7 @@ void StudyActivity::renderImageView() {
   toybox::Frame frame(target, target.deviceContext(), none, interactions_, nullptr, toybox::headerStatus(renderer));
   toybox::Screen screen(frame);
   studyui::buildImage(screen, imageView_.zoom, imageView_.turns);
+  if (sidebuttons::classic()) interactions_.coordinateAction(studyui::ImagePan);
   const auto area = studyui::imageViewport(screen.device(), imageView_.zoom);
   bool drawn = false;
   if (imageView_.zoom && zoomBand_ && zoomSource_) {
@@ -2016,7 +2014,7 @@ void StudyActivity::render(RenderLock&&) {
     renderImageView();
     return;
   }
-  if (view_ == View::Card) interactions_.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view_ == View::Card) interactions_.setFocusedIndex(-1);
   renderer.clearScreen();
   const int width = renderer.getScreenWidth();
   const int height = renderer.getScreenHeight();
@@ -2136,8 +2134,10 @@ void StudyActivity::render(RenderLock&&) {
     interactionsReady_ = true;
     toybox::reportOverflow(interactions_, "Study deck", &renderer);
 
-    const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    if (!sidebuttons::classic()) {
+      const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
     renderer.displayBuffer();
     return;
   }
@@ -2223,6 +2223,7 @@ void StudyActivity::render(RenderLock&&) {
     const bool imageOnly = cardHasImage() && !plainText[0];
     if (imageOnly) {
       drawImage(Rect{layout.content.x, layout.content.y, layout.content.width, layout.content.height});
+      screen.frame().hit(layout.content, flashui::Photo, 0, fui::InputTouch | fui::InputPointerOnly);
     } else if (plain) {
       target.setFont(4, flashcards::textSizeFont(textSizeChoice_));
       flashui::textPage(target, contentLayout.content, plainText, cardTextPage_, textScratch_, sizeof(textScratch_),

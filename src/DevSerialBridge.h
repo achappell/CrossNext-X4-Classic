@@ -3,10 +3,10 @@
 // Line-based serial command channel for driving a desk device from the host:
 // synthetic taps, swipes and buttons (through DevInputInjector), framebuffer
 // screenshots, and heap probes. Dev builds only
-// (-DCROSSPOINT_DEV_SERIAL_BRIDGE=1 in [env:x4pro] / [env:sticky]); it reads
-// the board's own serial transport (BoardConfig::serialTransport()), which is
-// UART0 behind the WCH bridge on the Sticky and the native USB CDC on the X4
-// Pro. tools_local/device/drive.py is the host side.
+// (-DCROSSPOINT_DEV_SERIAL_BRIDGE=1 in development environments, including x4c);
+// it reads the board's own serial transport (BoardConfig::serialTransport()).
+// Classic accepts its six navigation buttons and Power, not touch injection.
+// tools_local/device/drive.py is the host side.
 //
 // Commands (one per line, coordinates in panel-native pixels):
 //   CMD:PING

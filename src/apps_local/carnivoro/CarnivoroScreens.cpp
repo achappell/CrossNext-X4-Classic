@@ -309,8 +309,15 @@ void draw(fui::DrawTarget& t, const fui::DeviceContext& device, Model& m, Geomet
     const int actions[] = {Open, Campaign, Help, ResetAll};
     const char* labels[] = {tr(STR_CAR_OPEN), tr(STR_CAR_CAMPAIGN), tr(STR_CAR_HELP), tr(STR_CAR_RESET_ALL)};
     const freeink::Icon* marks[] = {&extra_notes_32, &extra_route_32, &extra_information_32, &icon_go_trash_32};
+    // Key navigation moves the SDK's focus, and the routed target is the only
+    // record of where it went. Falling back to the index keeps the entry
+    // highlight on the first row until a key is pressed.
+    int selected = m.focus;
+    if (m.keyboardFocus)
+      for (int n = 0; n < 4; ++n)
+        if (actions[n] == m.focusAction) selected = n;
     for (int n = 0; n < 4; ++n)
-      button(t, g, fui::makeRect(x, top + n * (row + gap), width, row), labels[n], actions[n], 0, n == m.focus, false,
+      button(t, g, fui::makeRect(x, top + n * (row + gap), width, row), labels[n], actions[n], 0, n == selected, false,
              marks[n], true);
     return;
   }

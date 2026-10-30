@@ -438,6 +438,37 @@ int main(int argc, char** argv) {
       input.clear();
       CHECK(!input.pop(event));
     }
+  for (int books : {0, 1, 7})
+    for (int rows : {1, 6, 8}) {
+      const int total = books + rows;
+      homeui::MenuInput input;
+      int selected = books;
+      int expected = selected;
+      for (int n = 0; n < 10001; ++n) {
+        const int direction = n % 5 ? 1 : -1;
+        CHECK(input.move(direction, total));
+        expected = (expected + direction + total) % total;
+      }
+      CHECK(input.push({homeui::MenuInput::Kind::Confirm}));
+      homeui::MenuInput::Event event;
+      CHECK(input.pop(event) && event.kind == homeui::MenuInput::Kind::Move);
+      selected = homeui::MenuInput::selection(selected, books, rows, event.steps, true);
+      CHECK(selected == expected);
+      CHECK(input.pop(event) && event.kind == homeui::MenuInput::Kind::Confirm);
+      CHECK(!input.pop(event));
+      // Classic can enter and leave every displayed book. The default path
+      // remains menu-only for the existing Pro/C3 consumers above.
+      selected = books;
+      for (int n = 0; n < total; ++n) {
+        selected = homeui::MenuInput::selection(selected, books, rows, -1, true);
+        CHECK(selected == (books - n - 1 + total) % total);
+      }
+      CHECK(selected == books);
+      if (books) {
+        CHECK(homeui::MenuInput::selection(books, books, rows, -1, true) == books - 1);
+        CHECK(homeui::MenuInput::selection(books - 1, books, rows, 1, true) == books);
+      }
+    }
   model.style = homeui::Style::Framed;
   for (int month = 1; month <= 12; ++month) {
     char date[20];

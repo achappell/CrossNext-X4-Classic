@@ -117,7 +117,7 @@ void HalGPIO::begin() {
   _deviceType = DeviceType::X4;
 #endif
   inputMgr.begin();
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
   attachActivityInterrupts();
 #endif
 
@@ -281,7 +281,8 @@ bool HalGPIO::hasEdgeSideButtons() const {
 bool HalGPIO::isXteinkDevice() const {
   return BoardConfig::ACTIVE.board == BoardConfig::Board::XteinkX3 ||
          BoardConfig::ACTIVE.board == BoardConfig::Board::XteinkX3Uc8279 ||
-         BoardConfig::ACTIVE.board == BoardConfig::Board::XteinkX4;
+         BoardConfig::ACTIVE.board == BoardConfig::Board::XteinkX4 ||
+         BoardConfig::ACTIVE.board == BoardConfig::Board::XteinkX4Classic;
 }
 
 bool HalGPIO::verifyPowerButtonWakeup() {

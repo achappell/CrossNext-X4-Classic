@@ -106,6 +106,13 @@ int main(int argc, char** argv) {
     uint8_t rows[study::kImageBandBytes];
     CHECK(images.readBand(imagesFile, images.at(imagesFile, 0, false), 0, rows) == 2);
     CHECK(rows[0] == 0xbf && rows[1] == 0x7f);
+    Bytes zoomFile("/.crosspoint/flashcards/media/images.zoom.dat");
+    study::StudyImages zoom;
+    CHECK(zoom.open(zoomFile, true));
+    const auto native = zoom.at(zoomFile, 0, false);
+    CHECK(native.valid() && native.width == 2 && native.height == 2 && native.bits == 8);
+    CHECK(zoom.readBand(zoomFile, native, 0, rows) == 2);
+    CHECK(rows[0] == 255 && rows[1] == 0 && rows[2] == 0 && rows[3] == 255);
     media.prepare("<img src='missing.png'>", nullptr);
     CHECK(!media.question());
   }

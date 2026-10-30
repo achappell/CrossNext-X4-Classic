@@ -176,7 +176,7 @@ void build(toybox::Screen& s, const Model& m, Work&) {
       wide ? fui::makeRect(info.x, info.y + 82, info.width, 30) : fui::makeRect(body.x, r.bottom() + 8, body.width, 28),
       !game2048::canMove(state)        ? tr(STR_2048_OVER)
       : game2048::highest(state) >= 11 ? tr(STR_2048_WON)
-                                       : tr(STR_REDESIGN_SWIPE),
+                                       : (s.device().hasTouch ? tr(STR_REDESIGN_SWIPE) : tr(STR_BUTTON_2048_MOVE)),
       3);
   dpad::build(s, controls, Move);
   if (m.saveFailed)

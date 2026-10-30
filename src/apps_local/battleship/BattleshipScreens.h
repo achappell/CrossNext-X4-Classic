@@ -50,7 +50,7 @@ const char* startRowLabel(StartRow row);
 
 // Saved fleet preview, statistics and menu actions.
 fui::Rect buildStartMenu(toybox::Screen& screen, const StartModel& model);
-void buildHowTo(toybox::Screen&, int page);
+void buildHowTo(toybox::Screen&, int page, bool classicControls = false);
 
 // Fleet placement with ship selection, rotation, shuffle and readiness controls.
 struct PlaceModel {
@@ -82,6 +82,7 @@ struct BoardModel {
   int mySide = 0, aim = -1;
   bool myTurn = true;
   bool ownFleet = false;
+  bool classicControls = false;
 };
 
 fui::Rect buildBoardChrome(toybox::Screen& screen, const BoardModel& model, Layout* layout = nullptr);

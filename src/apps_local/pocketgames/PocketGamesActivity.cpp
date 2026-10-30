@@ -171,6 +171,8 @@ void PocketGamesActivity::action(freeink::ui::ActionId action, int value) {
 }
 void PocketGamesActivity::loop() {
   RenderLock lock(*this);
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     cancelBotMove();
     if (view == pocketui::View::Menu) {
@@ -288,7 +290,8 @@ void PocketGamesActivity::loop() {
   changed();
 }
 void PocketGamesActivity::render(RenderLock&&) {
-  if (kind == pg::Kind::Othello && view == pocketui::View::Level) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && kind == pg::Kind::Othello && view == pocketui::View::Level)
+    interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);
@@ -297,6 +300,8 @@ void PocketGamesActivity::render(RenderLock&&) {
   toybox::Screen screen(frame);
   pocketui::build(
       screen, {&state, view, saveFailed, invalid, selected, level, guidePage, humanColour, preferredColour, botSquare});
+  if (sidebuttons::classic() && kind == pg::Kind::Othello && view == pocketui::View::Board)
+    frame.navigationGrid(pocketui::othelloBoardRect(target.deviceContext()), 8, 8);
   toybox::reportOverflow(interactions, "PocketGames", &renderer);
   ready = true;
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);

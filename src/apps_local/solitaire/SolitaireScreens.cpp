@@ -95,7 +95,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m, Layout& l) {
                   fui::TextAlign::Center, true);
   dashboard::hit(s, menu, ActionButton, ButtonMenu);
   if (g.canUndo()) dashboard::hit(s, undo, ActionButton, ButtonUndo);
-  const auto strip = fui::makeRect(0, h, s.device().width, 30);
+  const auto strip = fui::makeRect(0, std::max<int>(b.y, toybox::chromeBelow(kHeaderBand)), s.device().width, 30);
   dashboard::frame(s, strip, 2);
   char label[64];
   if (m.showMoves) {
@@ -183,7 +183,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m, Layout& l) {
       // Compressed offsets distribute rounding across the entire face-up run.
       const int span = l.cardOffset[column][pile.count - 1] - l.cardOffset[column][first];
       const int height = count > 1 ? std::max(count, (span * count + count - 2) / (count - 1)) : ch;
-      s.frame().navigationGrid(fui::makeRect(r.x, r.y + l.cardOffset[column][first], cw, height), 1, count);
+      s.frame().navigationGrid(fui::makeRect(r.x, r.y + l.cardOffset[column][first], cw, height), 1, count, ActionPile, p);
     } else
       s.frame().hit(hit, ActionPile, p);
   }
@@ -263,7 +263,7 @@ void buildSettings(toybox::Screen& s, const Options& o, bool failed) {
   dashboard::button(s, fui::makeRect(b.x, b.bottom() - 50, b.width, 50), tr(STR_CARDS_SAVE), ActionButton, SaveOptions,
                     true, nullptr, 1);
 }
-void buildHelp(toybox::Screen& s, int page) {
+void buildHelp(toybox::Screen& s, int page, bool classicControls) {
   const auto b = begin(s);
   page = std::clamp(page, 0, kHelpPages - 1);
   const bool wide = b.width > b.height;
@@ -282,11 +282,14 @@ void buildHelp(toybox::Screen& s, int page) {
                lesson ? tr(STR_CARDS_TAP_STOCK) : tr(STR_CARDS_ALTERNATE));
     helpLesson(s, fui::makeRect(area.x + w + 12, area.y, w, h), lesson ? tr(STR_CARDS_EMPTY) : tr(STR_CARDS_BASES),
                lesson ? GuideExample::Empty : GuideExample::Foundations,
-               lesson ? tr(STR_CARDS_KING_ONLY) : tr(STR_CARDS_ASCEND));
+               lesson ? tr(STR_CARDS_KING_ONLY)
+                      : (classicControls ? tr(STR_BUTTON_SOLITAIRE_FOUNDATION_HELP) : tr(STR_CARDS_ASCEND)));
     const auto notice = fui::makeRect(area.x, area.bottom() - noticeH, area.width, noticeH);
     dashboard::frame(s, notice, 2);
     guideui::text(s, notice.inset({int16_t(wide ? 3 : 6), 10, int16_t(wide ? 3 : 6), 10}),
-                  lesson ? tr(STR_CARDS_GUIDE_REVEAL) : tr(STR_CARDS_GUIDE_WIN), 4, fui::TextAlign::Center);
+                  lesson ? tr(STR_CARDS_GUIDE_REVEAL)
+                         : (classicControls ? tr(STR_BUTTON_SOLITAIRE_RUN_HELP) : tr(STR_CARDS_GUIDE_WIN)),
+                  4, fui::TextAlign::Center);
   }
   pageui::build(s, fui::makeRect(b.x, b.bottom() - 48, b.width, 48), page + 1, kHelpPages, ActionPage, page - 1,
                 ActionPage, page + 1);

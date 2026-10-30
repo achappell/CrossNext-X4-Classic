@@ -208,7 +208,35 @@ void build(toybox::Screen& s, const Model& m) {
       const auto mandatory = fui::makeRect(summary.x, done.y - (wide ? 86 : 70), summary.width, wide ? 72 : 24);
       fittext::draw(s.target(), mandatory, tr(STR_DRAUGHTS_MANDATORY), 3, wide ? 3 : 1, fui::TextAlign::Center);
       const int top = wide ? lessons.y : badge.bottom() + 10, available = wide ? lessons.height : mandatory.y - top - 4;
-      static constexpr int weights[] = {88, 128, 110, 158};
+      const char* capture = forward ? tr(STR_DRAUGHTS_CAPTURE_FORWARD) : tr(STR_DRAUGHTS_CAPTURE_BOTH);
+      char captureText[160];
+      std::snprintf(captureText, sizeof(captureText), "%s %s", capture,
+                    english                            ? tr(STR_DRAUGHTS_ANY_CHAIN)
+                    : rule == draughts::Rules::Spanish ? tr(STR_DRAUGHTS_MOST_KINGS)
+                                                       : tr(STR_DRAUGHTS_MOST));
+      const char* lessonText[] = {tr(STR_DRAUGHTS_MOVE_HELP), captureText,
+                                   forward ? tr(STR_DRAUGHTS_CROWN_END) : tr(STR_DRAUGHTS_CROWN_FINAL),
+                                   english ? tr(STR_DRAUGHTS_SHORT_HELP) : tr(STR_DRAUGHTS_LONG_HELP)};
+      int heights[4]{};
+      int proseFont = 4;
+      if (!wide) {
+        const int artWidth = lessons.width * 2 / 5, textWidth = lessons.width - artWidth - 10;
+        int used = 0;
+        for (int font : {4, 3}) {
+          fui::TextStyle measure;
+          measure.font = font;
+          measure.maxLines = 16;
+          used = 0;
+          for (int n = 0; n < 4; ++n) {
+            heights[n] = std::max(76, int(fui::measureWrappedText(s.target(), lessonText[n], measure, textWidth).height) + 8);
+            used += heights[n];
+          }
+          proseFont = font;
+          if (used <= available) break;
+        }
+        const int extra = std::max(0, available - used);
+        for (int n = 0; n < 4; ++n) heights[n] += extra / 4 + (n < extra % 4 ? 1 : 0);
+      }
       static constexpr const fui::BitmapRef* illustrations[][4] = {
           {&compactart::SpanishMove, &compactart::SpanishCapture, &compactart::SpanishCrown, &compactart::SpanishKing},
           {&compactart::BrazilMove, &compactart::BrazilCapture, &compactart::BrazilCrown, &compactart::BrazilKing},
@@ -219,7 +247,7 @@ void build(toybox::Screen& s, const Model& m) {
       const int first = wide ? (page % 2) * 2 : 0, last = wide ? first + 2 : 4;
       for (int n = first; n < last; ++n) {
         const int w = lessons.width;
-        const int h = wide ? available / 2 : available * weights[n] / 484;
+        const int h = wide ? available / 2 : heights[n];
         const auto r = fui::makeRect(lessons.x, wide ? top + (n - first) * available / 2 : y, w, h);
         const auto number = fui::makeRect(r.x, r.y, 32, 32);
         s.target().fill(number, dashboard::ink);
@@ -234,23 +262,12 @@ void build(toybox::Screen& s, const Model& m) {
         const int artW = wide ? std::min(138, int(r.width) / 3) : r.width * 2 / 5;
         compactart::draw(s, fui::makeRect(r.x + 42, r.y + 34, artW - 42, r.height - 42),
                          *illustrations[wide ? page / 2 : page][n]);
-        const char* text = n == 0    ? tr(STR_DRAUGHTS_MOVE_HELP)
-                           : n == 1  ? (forward ? tr(STR_DRAUGHTS_CAPTURE_FORWARD) : tr(STR_DRAUGHTS_CAPTURE_BOTH))
-                           : n == 2  ? ((forward) ? tr(STR_DRAUGHTS_CROWN_END) : tr(STR_DRAUGHTS_CROWN_FINAL))
-                           : english ? tr(STR_DRAUGHTS_SHORT_HELP)
-                                     : tr(STR_DRAUGHTS_LONG_HELP);
+        const char* text = lessonText[n];
         fui::TextStyle prose;
-        prose.font = 4;
-        prose.maxLines = 8;
+        prose.font = proseFont;
+        prose.maxLines = 16;
         auto copy =
             fui::makeRect(r.x + artW + 6, wide ? r.y + 38 : r.y + 4, r.width - artW - 10, r.height - (wide ? 50 : 8));
-        if (n == 1) {
-          std::snprintf(label, sizeof(label), "%s %s", text,
-                        english                            ? tr(STR_DRAUGHTS_ANY_CHAIN)
-                        : rule == draughts::Rules::Spanish ? tr(STR_DRAUGHTS_MOST_KINGS)
-                                                           : tr(STR_DRAUGHTS_MOST));
-          text = label;
-        }
         if (wide)
           fittext::draw(s.target(), copy, text, 4, 6);
         else

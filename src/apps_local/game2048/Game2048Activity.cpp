@@ -95,6 +95,17 @@ bool Game2048Activity::routeBoardSwipe() {
 void Game2048Activity::loop() {
   RenderLock lock(*this);
   if (view == game2048ui::View::Board && ready && routeBoardSwipe()) return;
+  if (sidebuttons::classic() && view == game2048ui::View::Board && ready) {
+    using Button = MappedInputManager::Button;
+    const int direction = mappedInput.wasReleased(Button::ScreenUp) ? 0
+                        : mappedInput.wasReleased(Button::ScreenRight) ? 1
+                        : mappedInput.wasReleased(Button::ScreenDown) ? 2
+                        : mappedInput.wasReleased(Button::ScreenLeft) ? 3 : -1;
+    if (direction >= 0) {
+      action(game2048ui::Move, direction);
+      return;
+    }
+  }
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     save();
     if (view == game2048ui::View::Menu) {
@@ -114,11 +125,13 @@ void Game2048Activity::loop() {
   if (view == game2048ui::View::Menu || view == game2048ui::View::Confirm) {
     const int count = view == game2048ui::View::Menu ? 3 : 2;
     if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+      if (sidebuttons::classic()) interactions.setFocusedIndex(-1);
       selected = (selected + 1) % count;
       requestUpdate();
       return;
     }
     if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
+      if (sidebuttons::classic()) interactions.setFocusedIndex(-1);
       selected = (selected + count - 1) % count;
       requestUpdate();
       return;

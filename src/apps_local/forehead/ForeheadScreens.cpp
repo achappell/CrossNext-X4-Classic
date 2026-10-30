@@ -107,8 +107,6 @@ void toyboxChrome(toybox::Screen& screen, const char* title, const char* rightLa
 // chevron already means "opens". A small centred cluster with air round it, and
 // the targets are contiguous WITHIN the cluster only, so the screen edges do
 // nothing.
-constexpr int16_t kPipSize = 10;
-constexpr int16_t kPipStep = 34;
 constexpr int16_t kPipBand = 44;
 
 void drawPips(toybox::Screen& screen, const fui::Rect& band, const int pages, const int current,

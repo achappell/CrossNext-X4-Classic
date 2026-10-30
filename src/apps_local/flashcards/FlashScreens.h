@@ -10,7 +10,7 @@ namespace flashui {
 namespace fui = freeink::ui;
 inline constexpr fui::ActionId OpenDeck = 201, History = 202, Help = 203, Page = 204, Back = 205, Cards = 206,
                                OpenSession = 207, Filter = 208, Month = 209, ViewSession = 210, OpenCard = 211,
-                               Rate = 212, Reveal = 213, Settings = 214;
+                               Rate = 212, Reveal = 213, Settings = 214, Undo = 215, Photo = 216, Question = 217;
 struct DeckRow {
   const char* name = "";
   int total = 0, due = 0, fresh = 0;

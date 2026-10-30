@@ -35,7 +35,10 @@ UiAppHost::TouchRoute UiAppHost::routeTouch(const MappedInputManager& input, con
   }
   if (!uiReady || !revealed()) return result;
   result.snap = touchSnapshotFrom(input, withLongPress);
-  if (sideButtons) sidebuttons::append(input, result.snap);
+  if (sideButtons) {
+    if (sidebuttons::classic()) app.setExplicitCoordinateNavigation(true);
+    sidebuttons::append(input, result.snap);
+  }
   if (!result.snap.touchPressed && !result.snap.touchReleased && !(routeHeld && result.snap.touchHeld) &&
       !result.snap.focusNext && !result.snap.focusPrev && !result.snap.confirm && !result.snap.prev &&
       !result.snap.next) {

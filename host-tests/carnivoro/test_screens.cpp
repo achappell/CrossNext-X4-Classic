@@ -314,6 +314,56 @@ int main(int argc, char** argv) {
           }
         }
       }
+  // Classic moves the SDK's cursor; the panel must paint whatever Confirm will
+  // hit. This is the bug where three RIGHTs left OPEN CASE highlighted while
+  // Confirm opened RESET ALL, the one destructive row in the app.
+  {
+    I18N.setLanguage(Language::EN);
+    Canvas c(800, 480);
+    FontBridge prose(ui_prose_10);
+    c.target.setFont(4, prose.font);
+    carnivoro::State state;
+    state.caseId = carnivoro::kNoCase;
+    carnivoroui::Model m;
+    m.state = &state;
+    m.view = carnivoroui::View::Menu;
+    carnivoroui::Geometry g;
+    pagedtext::Work work;
+    const auto paint = [&] {
+      c.interactions.clear();
+      carnivoroui::build(c.screen, m, g, work);
+      paintclock::notePainted();
+    };
+    paint();
+    CHECK(!m.keyboardFocus);
+    CHECK(m.focus == 0);
+    // Walk the whole menu once, checking the painted target against the
+    // control each step actually routed to. The destructive row must be the
+    // one shown before Confirm can reach it.
+    const int expected[] = {carnivoroui::Open, carnivoroui::Campaign, carnivoroui::Help, carnivoroui::ResetAll};
+    for (int step = 0; step < 4; ++step) {
+      c.interactions.setFocusedIndex(-1);
+      paint();
+      c.interactions.setExplicitCoordinateNavigation(true);
+      for (int n = 0; n <= step; ++n) {
+        fui::InputSnapshot next{};
+        next.focusNext = true;
+        c.interactions.route(next);
+      }
+      fui::Rect cursor;
+      CHECK(c.interactions.buttonFocusRect(cursor));
+      paint();
+      CHECK(m.keyboardFocus);
+      CHECK(m.focusAction == expected[step]);
+      CHECK(m.focusValue == 0);
+      // The routed target and the painted one are the same control.
+      fui::InputSnapshot confirm{};
+      confirm.confirm = true;
+      const auto event = c.interactions.route(confirm);
+      CHECK(event.action == m.focusAction);
+      CHECK(event.value == m.focusValue);
+    }
+  }
   std::printf("%d screen checks, %d failures\n", checks, failures);
   return failures ? 1 : 0;
 }

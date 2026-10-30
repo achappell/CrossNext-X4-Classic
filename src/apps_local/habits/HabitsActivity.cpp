@@ -254,12 +254,21 @@ void HabitsActivity::refreshDate() {
 }
 
 void HabitsActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("APP-NAV", "Navigation queue full");
+  if (sidebuttons::cancelEditor(interactions_, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions_, mappedInput, *this)) return;
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(), sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("APP-NAV", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
   sectionnav::Input::Event navCommand{};
-  const bool hasNavCommand = navigation.pop(navCommand);
+  const bool hasNavCommand =
+      (navigation.backPending() || (interactionsReady_ && interactions_.routable())) && navigation.pop(navCommand);
+  if (hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Focus) {
+    sidebuttons::focus(interactions_, navCommand.amount, *this);
+    return;
+  }
   const bool navBack = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Back;
+  const bool navConfirm = hasNavCommand && navCommand.kind == sectionnav::Input::Kind::Confirm;
   const int navStep = hasNavCommand && (navCommand.kind == sectionnav::Input::Kind::Step ||
                                         navCommand.kind == sectionnav::Input::Kind::Section)
                           ? navCommand.amount
@@ -275,9 +284,9 @@ void HabitsActivity::loop() {
   const int held = navStep;
   const auto swipe = mappedInput.wasSwipe();
   const int horizontal = interactionsReady_ && interactions_.routable() ? sidebuttons::horizontalStep(mappedInput) : 0;
-  const bool next = held > 0 || mappedInput.wasReleased(MappedInputManager::Button::Right) ||
+  const bool next = held > 0 || (!sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Right)) ||
                     swipe == MappedInputManager::SwipeDir::Up || horizontal > 0;
-  const bool prev = held < 0 || mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+  const bool prev = held < 0 || (!sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Left)) ||
                     swipe == MappedInputManager::SwipeDir::Down || horizontal < 0;
   fui::ActionEvent event{};
   if (view_ == View::Detail && horizontal) {
@@ -287,8 +296,10 @@ void HabitsActivity::loop() {
     event.action = habitsui::ActionPage;
     event.value = navStep ? navStep : next ? 1 : -1;
   } else {
-    int x, y;
-    if (!sidebuttons::poll(interactions_, mappedInput, x, y, false) || !interactionsReady_) return;
+    int x = -1, y = -1;
+    if (!interactionsReady_) return;
+    if (!navConfirm && (mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
+                        !sidebuttons::poll(interactions_, mappedInput, x, y, false))) return;
     if (view_ != View::Clock && view_ != View::StorageError) {
       const int shownDay = today_;
       const View shownView = view_;
@@ -297,11 +308,20 @@ void HabitsActivity::loop() {
       // that change before accepting another gesture against the new day.
       if (today_ != shownDay || view_ != shownView) return;
     }
-    fui::InputSnapshot input;
-    input.touchReleased = true;
-    input.touchX = static_cast<int16_t>(x);
-    input.touchY = static_cast<int16_t>(y);
-    event = sidebuttons::route(interactions_, input, mappedInput, *this, false);
+    if (navConfirm) {
+      fui::Rect focused;
+      if (interactions_.buttonFocusRect(focused)) {
+        x = focused.x + focused.width / 2;
+        y = focused.y + focused.height / 2;
+      }
+      event = sidebuttons::confirm(interactions_, *this);
+    } else {
+      fui::InputSnapshot input;
+      input.touchReleased = true;
+      input.touchX = static_cast<int16_t>(x);
+      input.touchY = static_cast<int16_t>(y);
+      event = sidebuttons::route(interactions_, input, mappedInput, *this, false);
+    }
     if (event.action == habitsui::ActionCalendar) {
       const int day = habitsui::calendarDayAt(toybox::makeTarget(renderer).deviceContext(),
                                               {&store_, selected_, today_, historyStart_, selectedDay_}, x, y);
@@ -411,7 +431,7 @@ void HabitsActivity::loop() {
 }
 
 void HabitsActivity::render(RenderLock&&) {
-  interactions_.setFocusedIndex(-1);
+  if (!sidebuttons::classic()) interactions_.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   target.setFont(4, toybox::kLibraryFontId);

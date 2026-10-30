@@ -38,6 +38,10 @@ mkdir -p "$BUILD_DIR"
   ../../src/apps_local/ui/PixelMenu.cpp \
   ../../src/apps_local/ui/GameFrontDoor.cpp \
   ../../src/apps_local/chess/ChessScreens.cpp \
+  ../../src/apps_local/chess/ChessCore.cpp ../../src/apps_local/chess/ChessEngine.cpp \
+  ../../src/apps_local/chess/puzzles/ChessPuzzleCore.cpp ../../src/apps_local/chess/puzzles/ChessPuzzleData.cpp \
+  ../../src/apps_local/chess/puzzles/ChessPuzzleScreens.cpp \
+  ../../src/apps_local/checkers/DraughtsScreens.cpp ../../src/apps_local/checkers/DraughtsCore.cpp \
   ../../src/apps_local/go/GoScreens.cpp \
   ../../src/apps_local/go/GoCore.cpp \
   ../../src/apps_local/connectfour/ConnectFourScreens.cpp \

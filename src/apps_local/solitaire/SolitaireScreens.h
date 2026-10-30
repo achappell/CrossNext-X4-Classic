@@ -118,7 +118,7 @@ struct Options {
 void buildSetup(toybox::Screen&, bool drawThree, bool replacing);
 void buildSettings(toybox::Screen&, const Options&, bool failed = false);
 inline constexpr int kHelpPages = 3;
-void buildHelp(toybox::Screen&, int page);
+void buildHelp(toybox::Screen&, int page, bool classicControls = false);
 
 cards::Suit foundationSuit(const solitaire::Game&, int pile);
 

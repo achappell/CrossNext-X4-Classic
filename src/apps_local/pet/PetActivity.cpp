@@ -13,6 +13,7 @@
 #include "../ui/PixelMenuTheme.h"
 #include "PetAlbum.h"
 #include "PetCatalogView.h"
+#include "components/SideButtonNavigation.h"
 
 namespace fui = freeink::ui;
 std::unique_ptr<Activity> PetActivity::create(GfxRenderer& renderer, MappedInputManager& input) {
@@ -86,6 +87,7 @@ void PetActivity::onExit() {
   Activity::onExit();
 }
 void PetActivity::show(pet::View next) {
+  const bool keepFocus = sidebuttons::classic() && view == next;
   if (next != pet::View::Notice) feedResult = {};
   if (next != pet::View::Notice) {
     careResult = {};
@@ -99,7 +101,7 @@ void PetActivity::show(pet::View next) {
   animationRebasePending = true;
   syncCollectionArt();
   ready = false;
-  interactions.setFocusedIndex(-1);
+  if (!keepFocus) interactions.setFocusedIndex(-1);
   requestUpdate();
 }
 void PetActivity::notice(const char* text, pet::View next, petui::NoticeKind kind, petui::CareResult result) {
@@ -808,7 +810,11 @@ void PetActivity::swipeCatalog(int dx, int dy) {
   if (next != page) action(petui::Page, -dx);
 }
 void PetActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("PET", "Navigation queue full");
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(),
+                           sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("PET", "Navigation queue full");
   const bool sliding = view == pet::View::Projects || (view == pet::View::Play && game.kind == pet::Game::Puzzle);
   const auto swipe = sliding ? mappedInput.wasSwipe() : MappedInputManager::SwipeDir::None;
   if (sliding) {
@@ -848,6 +854,10 @@ void PetActivity::loop() {
         back();
         return;
       }
+      if (command.kind == sectionnav::Input::Kind::Focus) {
+        sidebuttons::focus(interactions, command.amount, *this);
+        return;
+      }
       if (command.kind == sectionnav::Input::Kind::Confirm && ready && interactions.routable()) {
         back();
         return;
@@ -885,17 +895,27 @@ void PetActivity::loop() {
   fui::InputSnapshot input{};
   if ((!ready || !interactions.routable()) && !navigation.backPending()) return;
   if (navigation.pop(command, 1)) {
+    interactions.setExplicitCoordinateNavigation(sidebuttons::classic());
     switch (command.kind) {
       case sectionnav::Input::Kind::Back:
         back();
         return;
       case sectionnav::Input::Kind::Step:
       case sectionnav::Input::Kind::Section:
-        if (profile.created && view != pet::View::Name && view != pet::View::Death)
+        if (profile.created && view != pet::View::Name && view != pet::View::Death) {
           action(petui::ChangeTab, (int(tab) + command.amount % 4 + 4) % 4);
-        return;
+          return;
+        }
+        if (!sidebuttons::classic()) return;
+        input.focusNext = command.amount > 0;
+        input.focusPrev = command.amount < 0;
+        break;
       case sectionnav::Input::Kind::Confirm:
         input.confirm = true;
+        break;
+      case sectionnav::Input::Kind::Focus:
+        input.focusNext = command.amount > 0;
+        input.focusPrev = command.amount < 0;
         break;
     }
   }
@@ -1011,6 +1031,7 @@ void PetActivity::render(RenderLock&&) {
     model.resourcesReady = false;
     petui::render(target, target.deviceContext(), input, interactions, toybox::headerStatus(renderer), model, work);
   }
+  if (sidebuttons::classic() && view == pet::View::Play) interactions.coordinateAction(petui::GamePick);
   ready = true;
   toybox::reportOverflow(interactions, "Pet", &renderer);
   renderer.displayBuffer();

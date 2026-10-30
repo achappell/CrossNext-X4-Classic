@@ -42,7 +42,7 @@
 class HalGPIO {
 #if CROSSPOINT_EMULATED == 0
   InputManager inputMgr;
-#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_STICKY
+#if FREEINK_DEVICE_X4PRO || FREEINK_DEVICE_X4CLASSIC || FREEINK_DEVICE_STICKY
   StaticSemaphore_t activitySemaphoreStorage{};
   SemaphoreHandle_t activitySemaphore = nullptr;
   bool activityInterruptsReady = false;

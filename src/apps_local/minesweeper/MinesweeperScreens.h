@@ -45,6 +45,7 @@ struct MenuModel {
 
 struct HowToModel {
   int page = 0;
+  bool classicControls = false;
 };
 
 struct BoardModel {
@@ -60,6 +61,7 @@ struct BoardModel {
   // drawn, and a tap on it switches: the board can then say what a tap will do
   // instead of the player having to remember.
   bool flagMode = false;
+  bool classicControls = false;
 };
 
 struct ResultModel {

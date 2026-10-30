@@ -80,7 +80,8 @@ void brackets(toybox::Screen& s, fui::Rect r, bool inverse = false) {
   }
 }
 void grid(toybox::Screen& s, fui::Rect area, const sk::Game& game, int selected = sk::kNoCell, int held = sk::kNoCell,
-          bool active = false, sk::EntryTool tool = sk::EntryTool::Digit, bool showMatches = true) {
+          bool active = false, sk::EntryTool tool = sk::EntryTool::Digit, bool showMatches = true,
+          bool showNotes = false) {
   const int cell = std::min(int(area.width), int(area.height)) / 9;
   const int x = area.x + (area.width - cell * 9) / 2, y = area.y + (area.height - cell * 9) / 2;
   for (int n = 0; n < 81; ++n) {
@@ -94,6 +95,19 @@ void grid(toybox::Screen& s, fui::Rect area, const sk::Game& game, int selected 
     const int markSize = std::clamp(cell / 3, 10, 18);
     const auto number = feedback ? rect(r.x + 1, r.y, cell * 3 / 5, cell) : r;
     if (value) digit(s, number, value, inverse, cell >= 34 ? 1 : 0);
+    const sk::Mask notes = !value && showNotes ? sk::visibleNotes(game, n) : 0;
+    if (notes) {
+      fui::TextStyle style;
+      style.font = fui::FONT_SLOT_SMALL;
+      style.align = fui::TextAlign::Center;
+      style.maxLines = 1;
+      for (int candidate = 1; candidate <= sk::kSize; ++candidate) {
+        if (!(notes & sk::bitFor(candidate))) continue;
+        const int column = (candidate - 1) % 3, row = (candidate - 1) / 3;
+        const char label[] = {char('0' + candidate), 0};
+        s.target().text(rect(r.x + column * cell / 3, r.y + row * cell / 3, cell / 3, cell / 3), label, style);
+      }
+    }
     if (feedback) {
       const int mx = r.right() - markSize - 5, my = r.y + 7;
       if (checked == sk::CellCheck::Correct) {
@@ -293,7 +307,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m) {
   pixelui::text(s.target(), g.level,
                 m.generating ? tr(STR_SDK_GENERATING) : sudokulabels::levelName(m.game.puzzle.level), 0);
   if (!m.generating) {
-    grid(s, g.grid, m.game, m.selectedCell, m.holdCell, true, m.entryTool, m.showMatches);
+    grid(s, g.grid, m.game, m.selectedCell, m.holdCell, true, m.entryTool, m.showMatches, m.classicControls);
   } else {
     dashboard::frame(s, g.grid, pixelui::kBorder);
     copy(s, g.grid, tr(STR_SDK_GENERATING), 4, 2);
@@ -309,6 +323,27 @@ void buildBoard(toybox::Screen& s, const BoardModel& m) {
       dashboard::frame(s, r);
     digit(s, r, n, selected, 1);
   }
+  if (m.classicControls) {
+    const char* labels[] = {tr(STR_SDK_ERASE), tr(STR_SDK_HINT), tr(STR_SDK_NOTES), tr(STR_UNDO)};
+    const fui::ActionId actions[] = {ActionErase, ActionHint, ActionNotes, ActionUndo};
+    const int gap = 4, width = (g.tools.width - 3 * gap) / 4;
+    for (int n = 0; n < 4; ++n) {
+      fui::ButtonProps button;
+      button.styles = pixelui::buttonStyles();
+      button.label = labels[n];
+      button.action = actions[n];
+      button.text.font = 3;
+      button.enabled = !m.generating && !m.game.solvedFlag && (n != 3 || sk::canUndo(m.game));
+      const bool selected = n == 0 ? m.entryTool == sk::EntryTool::Erase
+                            : n == 1 ? m.entryTool == sk::EntryTool::Check
+                            : n == 2 ? m.notesMode && m.entryTool == sk::EntryTool::Digit : false;
+      button.state = selected ? fui::StateSelected : fui::StateNormal;
+      const auto bounds = rect(g.tools.x + n * (width + gap), g.tools.y, width, g.tools.height);
+      s.button(button, bounds);
+      // Keep the board cursor stable when a commit makes Undo available.
+      if (!button.enabled) s.frame().hit(bounds, actions[n], 0, fui::InputDefault, fui::StateDisabled);
+    }
+  } else {
   const int gap = 8, w = (g.tools.width - gap) / 2;
   const char* labels[] = {tr(STR_SDK_ERASE), tr(STR_SDK_HINT)};
   const fui::ActionId actions[] = {ActionErase, ActionHint};
@@ -326,13 +361,14 @@ void buildBoard(toybox::Screen& s, const BoardModel& m) {
     pixelui::text(s.target(), rect(r.x + 44, r.y, r.width - 50, r.height), labels[n], 0,
                   selected ? fui::Color::White : fui::Color::Black, fui::TextAlign::Center);
   }
+  }
   copy(s, g.prompt,
        m.generating                          ? tr(STR_SDK_GENERATING)
        : m.entryTool == sk::EntryTool::Erase ? tr(STR_SDK_ERASE_ACTIVE)
        : m.entryTool == sk::EntryTool::Check ? tr(STR_SDK_CHECK_ACTIVE)
        : m.notice                            ? m.notice
        : m.game.solvedFlag                   ? tr(STR_SDK_SOLVED_COPY)
-                                             : tr(STR_SDK_PLACE_COPY),
+                                             : (s.device().hasTouch ? tr(STR_SDK_PLACE_COPY) : tr(STR_BUTTON_SUDOKU_CELL)),
        4, 2);
   const bool finished = !m.generating && m.game.solvedFlag != 0;
   action(s, g.menu, finished ? tr(STR_SDK_SEE_RESULT) : tr(STR_C4_MENU), finished ? ActionSeeResult : ActionMenu,
@@ -420,7 +456,7 @@ void buildHowTo(toybox::Screen& s, const HowToModel& m) {
       }
     }
   } else if (page == 1) {
-    copy(s, rect(room.x, room.y, room.width, 48), tr(STR_SDK_PLACE_COPY), 4, 2);
+    copy(s, rect(room.x, room.y, room.width, 48), (s.device().hasTouch ? tr(STR_SDK_PLACE_COPY) : tr(STR_BUTTON_SUDOKU_CELL)), 4, 2);
     const int keyW = (room.width - 8 * 4) / 9;
     for (int n = 0; n < 9; ++n) {
       auto r = rect(room.x + n * (keyW + 4), room.y + 58, keyW, 44);
@@ -438,9 +474,11 @@ void buildHowTo(toybox::Screen& s, const HowToModel& m) {
     auto detail = wide ? rect(lower.x + lower.width / 2 + 10, lower.y, lower.width / 2 - 10, lower.height)
                        : rect(lower.x, lower.bottom() - bottom, lower.width, bottom);
     title(s, rect(detail.x, detail.y, detail.width, 40), tr(STR_SDK_QUICK), 1);
-    copy(s, rect(detail.x, detail.y + 44, detail.width, detail.height - 44), tr(STR_SDK_QUICK_COPY), 4, 4);
+    copy(s, rect(detail.x, detail.y + 44, detail.width, detail.height - 44),
+         m.classicControls ? tr(STR_BUTTON_SUDOKU_QUICK) : tr(STR_SDK_QUICK_COPY), 4, 4);
   } else if (page == 2) {
-    copy(s, rect(room.x, room.y, room.width, 58), tr(STR_SDK_ERASE_COPY), 4, 2);
+    copy(s, rect(room.x, room.y, room.width, 58),
+         m.classicControls ? tr(STR_BUTTON_SUDOKU_ERASE) : tr(STR_SDK_ERASE_COPY), 4, 2);
     auto main = rect(room.x, room.y + 70, room.width, room.height - 150);
     const int gap = 32, side = wide ? std::min(int(main.height), main.width / 2 - 30) : (main.height - gap) / 2;
     littleGrid(s, rect(main.x, main.y, wide ? main.width / 2 - 20 : main.width, side), "1.3.5...9", 4);

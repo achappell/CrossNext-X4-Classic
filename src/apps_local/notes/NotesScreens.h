@@ -138,6 +138,7 @@ struct MenuModel {
   // same way isList does.
   bool shownAsleep = false;
   bool todo = false;
+  bool classic = false;
 };
 
 void buildMenu(toybox::Screen& screen, const MenuModel& model);

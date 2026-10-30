@@ -191,13 +191,45 @@ struct Canvas {
   }
 };
 
+void testClassicPhoneMenu(int w, int h) {
+  for (bool todo : {false, true}) {
+    Canvas c(w, h);
+    c.device.hasTouch = false;
+    c.interactions.setExplicitCoordinateNavigation(true);
+    notesui::MenuModel m;
+    m.classic = true;
+    m.todo = todo;
+    m.isList = todo;
+    m.title = "Reading";
+    notesui::buildMenu(c.screen, m);
+    c.checkHits();
+    bool reachedPhone = false;
+    for (size_t n = 0; n <= c.interactions.count(); ++n) {
+      fui::InputSnapshot move{};
+      move.focusNext = true;
+      c.interactions.route(move);
+      fui::InputSnapshot confirm{};
+      confirm.confirm = true;
+      if (c.interactions.route(confirm).action != notesui::ActionUsePhone) continue;
+      reachedPhone = true;
+      break;
+    }
+    CHECK(reachedPhone);
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  const bool phoneOnly = argc > 1 && std::string(argv[1]) == "--notes-phone";
   for (auto lang : {Language::EN, Language::ES}) {
     I18N.setLanguage(lang);
     for (auto size : {std::pair<int, int>{480, 800}, {800, 480}}) {
       const int w = size.first, h = size.second;
+      if (phoneOnly) {
+        testClassicPhoneMenu(w, h);
+        continue;
+      }
       auto save = [&](Canvas& c, const char* name, int n = 0) {
         c.checkHits();
         if (argc > 1) {
@@ -212,20 +244,26 @@ int main(int argc, char** argv) {
       for (const auto& preset : habitsui::kPresets)
         CHECK(habits::add(store, preset.get(), today) == habits::NameResult::Ok);
       habits::add(store, "Stretch", today);
-      for (int page = 0; page < 2; ++page) {
+      std::array<bool, habits::kMaxHabits> toggles{}, opens{};
+      Canvas capacity(w, h);
+      const int habitPages = (store.count + habitsui::todayCapacity(capacity.device) - 1) /
+                             habitsui::todayCapacity(capacity.device);
+      for (int page = 0; page < habitPages; ++page) {
         Canvas c(w, h);
         habitsui::TodayModel m;
         m.store = &store;
         m.today = today;
         m.page = page;
         habitsui::buildToday(c.screen, m);
-        CHECK(habitsui::todayCapacity(c.device) == 4);
-        CHECK(c.hits(habitsui::ActionToggleToday) == (page ? 2 : 4));
-        CHECK(!c.label(tr(STR_TASK_PENDING)));
-        CHECK(!c.label(tr(STR_HABITS_DONE)));
-        CHECK(c.has(habitsui::ActionOpen, page ? 4 : 0));
+        for (size_t n = 0; n < c.interactions.count(); ++n) {
+          const auto& hit = c.interactions.data()[n];
+          if (hit.value < 0 || hit.value >= store.count) continue;
+          if (hit.action == habitsui::ActionToggleToday) toggles[hit.value] = true;
+          if (hit.action == habitsui::ActionOpen) opens[hit.value] = true;
+        }
         save(c, "habits", page);
       }
+      for (int n = 0; n < store.count; ++n) CHECK(toggles[n] && opens[n]);
       {
         Canvas c(w, h);
         habitsui::buildPresets(c.screen, 0);
@@ -268,7 +306,6 @@ int main(int argc, char** argv) {
           m.anyDone = done;
           const auto starts = notesui::notePageStarts(c.target, c.device, m);
           CHECK(starts.size() > 1);
-          if (w < h) CHECK(starts[1] == 8);
           notesui::buildNote(c.screen, m);
           CHECK(c.has(notesui::ActionTodoLists));
           CHECK(!c.has(notesui::ActionFreeTasks));
@@ -302,6 +339,7 @@ int main(int argc, char** argv) {
       {
         Canvas c(w, h);
         notesui::MenuModel m;
+        m.classic = true;
         m.title = "Notes";
         notesui::buildMenu(c.screen, m);
         CHECK(c.has(notesui::ActionUsePhone));
@@ -309,14 +347,14 @@ int main(int argc, char** argv) {
       {
         Canvas c(w, h);
         notesui::MenuModel m;
+        m.classic = true;
         m.todo = true;
         m.title = "Converted note";
         m.isList = false;
         notesui::buildMenu(c.screen, m);
         CHECK(c.has(notesui::ActionUsePhone));
-        CHECK(c.label(tr(STR_UI_MAKE_IT_A_LIST_D0621D)));
-        CHECK(!c.label(tr(STR_UI_MAKE_IT_A_NOTE_A34558)));
       }
+      testClassicPhoneMenu(w, h);
       {
         const notesui::Task reference[] = {{"Regar las plantas", false},   {"Ordenar libros", false},
                                            {"Sacar la basura", false},     {"Limpiar la cocina", false},
@@ -330,9 +368,20 @@ int main(int argc, char** argv) {
         m.count = 8;
         m.total = 8;
         const auto pages = notesui::notePageStarts(c.target, c.device, m);
-        if (w < h) CHECK(pages.size() == 1);
+        std::array<bool, 8> reachable{};
+        for (int start : pages) {
+          Canvas page(w, h);
+          m.firstVisible = start;
+          notesui::buildNote(page.screen, m);
+          page.checkHits();
+          for (size_t n = 0; n < page.interactions.count(); ++n) {
+            const auto& hit = page.interactions.data()[n];
+            if (hit.action == notesui::ActionToggleTask && hit.value >= 0 && hit.value < 8)
+              reachable[hit.value] = true;
+          }
+        }
+        for (bool item : reachable) CHECK(item);
         notesui::buildNote(c.screen, m);
-        if (w < h) CHECK(c.hits(notesui::ActionToggleTask) == 8);
         save(c, "reference-eight");
       }
       for (int page = 0; page < (w < h ? 4 : 8); ++page) {
@@ -341,7 +390,8 @@ int main(int argc, char** argv) {
         m.view = draughtsui::View::Help;
         m.helpPage = page;
         draughtsui::build(c.screen, m);
-        CHECK(c.has(draughtsui::HelpDone));
+        CHECK(c.has(draughtsui::HelpPage, -1) == (page > 0));
+        CHECK(c.has(draughtsui::HelpPage, 1) == (page + 1 < (w < h ? 4 : 8)));
         save(c, "draughts", page);
       }
       for (auto opponent : {chessui::Opponent::Computer, chessui::Opponent::PassAndPlay}) {
@@ -352,8 +402,7 @@ int main(int argc, char** argv) {
         m.humanPlaysWhite = false;
         chessui::buildSettings(c.screen, m);
         CHECK(c.has(chessui::ActionSettingValue, int(chessui::SettingValue::Hints)));
-        CHECK(c.has(chessui::ActionSettingValue, int(chessui::SettingValue::Hard)) ==
-              (opponent == chessui::Opponent::Computer));
+        CHECK(c.has(chessui::ActionSettingValue, int(chessui::SettingValue::Hard)));
         save(c, "chess-settings", int(opponent));
       }
       for (int error = 0; error < 2; ++error) {

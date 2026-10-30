@@ -375,6 +375,8 @@ void HeartsActivity::routeButton(const int button) {
 }
 
 void HeartsActivity::loop() {
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (view == View::Menu) {
       shelf::leave(renderer, mappedInput);
@@ -657,7 +659,7 @@ const char* HeartsActivity::subStatusLine() {
 }
 
 void HeartsActivity::render(RenderLock&&) {
-  if (view == View::Settings || view == View::Setup) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && (view == View::Settings || view == View::Setup)) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   fui::GfxRendererTarget target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);
@@ -717,7 +719,9 @@ void HeartsActivity::render(RenderLock&&) {
     model.showConfirm = game.phase == Phase::Passing;
     model.confirmLabel = tr(STR_UI_PASS_BD564D);
     model.confirmEnabled = pickedCount == kPassCount;
+    model.classic = sidebuttons::classic();
     ui::buildBoard(screen, model, layout);
+    if (sidebuttons::classic()) interactions.coordinateAction(ui::ActionHandCard);
   }
 
   interactionsReady = true;
@@ -738,7 +742,7 @@ void HeartsActivity::render(RenderLock&&) {
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(flashOnNextPaint ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
   flashOnNextPaint = false;
 }

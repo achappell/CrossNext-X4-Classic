@@ -506,11 +506,12 @@ void buildCard(toybox::Screen& screen, const CardModel& m) {
   }
   dashboard::frame(screen, l.face, 2);
   if (m.answer) {
-    // The full question remains available by touching its summary.
+    // The full question remains available through its summary control.
     size_t n = std::min<size_t>(80, std::strlen(m.question));
     while (n && ((uint8_t(m.question[n]) & 0xc0) == 0x80)) --n;
     std::snprintf(label, sizeof(label), "%.*s", int(n), m.question);
     fittext::draw(screen.target(), l.summary, label, 4, 3, fui::TextAlign::Center);
+    screen.frame().hit(l.summary, flashui::Question);
     screen.target().line({int16_t(l.face.x + 12), int16_t(l.summary.bottom() + 8)},
                          {int16_t(l.face.right() - 12), int16_t(l.summary.bottom() + 8)}, 1, dashboard::ink);
   }
@@ -526,6 +527,7 @@ void buildCard(toybox::Screen& screen, const CardModel& m) {
   if (m.hasPhoto) {
     dashboard::frame(screen, l.photo, pixelui::kBorder);
     fittext::draw(screen.target(), l.photo, tr(STR_UI_PHOTO_7F8353), 3, 1, fui::TextAlign::Center);
+    screen.frame().hit(l.photo, flashui::Photo);
   }
   if (!m.answer) {
     const auto copy = fui::makeRect(wide ? l.reveal.x : b.x, wide ? l.reveal.y - 70 : l.face.bottom() + 8,
@@ -533,7 +535,8 @@ void buildCard(toybox::Screen& screen, const CardModel& m) {
     fittext::draw(screen.target(), copy, tr(STR_FLASH_THINK), 4, wide ? 2 : 1, fui::TextAlign::Center);
     screen.frame().hit(l.reveal, flashui::Reveal);
     dashboard::action(screen.target(), l.reveal, tr(STR_UI_SHOW_ANSWER_A74BF3), &extra_dashboard_eye_32, true);
-    if (m.canUndo) dashboard::action(screen.target(), l.undo, tr(STR_FLASH_UNDO_LAST), &extra_dashboard_undo_32);
+    if (m.canUndo)
+      dashboard::action(screen, l.undo, tr(STR_FLASH_UNDO_LAST), flashui::Undo, &extra_dashboard_undo_32);
     return;
   }
   static constexpr StrId labels[] = {StrId::STR_UI_AGAIN_88825D, StrId::STR_UI_HARD_A06A58, StrId::STR_UI_GOOD_7763D3,

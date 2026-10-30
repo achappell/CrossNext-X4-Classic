@@ -129,8 +129,10 @@ void InterceptActivity::loop() {
     else if (view == interceptui::View::Restart)
       action(selected == 0 ? interceptui::ConfirmNew : interceptui::Cancel, 0);
   }
-  if (mappedInput.wasReleased(MappedInputManager::Button::Left)) action(interceptui::Page, -1);
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right)) action(interceptui::Page, 1);
+  if (!sidebuttons::classic()) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Left)) action(interceptui::Page, -1);
+    if (mappedInput.wasReleased(MappedInputManager::Button::Right)) action(interceptui::Page, 1);
+  }
   int x, y;
   if (!ready || !sidebuttons::poll(interactions, mappedInput, x, y, !(view == interceptui::View::Story))) return;
   fui::InputSnapshot in;
@@ -141,7 +143,7 @@ void InterceptActivity::loop() {
   action(event.action, event.value);
 }
 void InterceptActivity::render(RenderLock&&) {
-  if (view == interceptui::View::Story) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view == interceptui::View::Story) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer, I18N.getLanguage() != Language::EN);

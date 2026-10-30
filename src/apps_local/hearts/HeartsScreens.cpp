@@ -112,7 +112,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m, Layout& l) {
   auto b = begin(s, true);
   auto& t = s.target();
   const bool passing = g.phase == Phase::Passing;
-  const auto status = fui::makeRect(b.x - 6, b.y - 6, b.width + 12, 34);
+  const auto status = fui::makeRect(b.x - 6, std::max<int>(b.y, toybox::chromeBelow(kHeaderBand)), b.width + 12, 34);
   dashboard::frame(s, status, 2);
   char label[100];
   std::snprintf(label, sizeof(label), tr(STR_HEARTS_ROUND), int(g.handNumber) + 1);
@@ -190,7 +190,7 @@ void buildBoard(toybox::Screen& s, const BoardModel& m, Layout& l) {
   const auto handBox = fui::makeRect(b.x, b.bottom() - handH + (passing ? 0 : 0), b.width, handH);
   if (!passing) dashboard::frame(s, handBox, 2);
   dashboard::text(s, fui::makeRect(handBox.x + 8, handBox.y + 2, handBox.width - 16, 30),
-                  passing ? tr(STR_HEARTS_HAND) : m.status, 0, fui::TextAlign::Left);
+                  passing ? (m.classic ? tr(STR_HEARTS_PICK) : tr(STR_HEARTS_HAND)) : m.status, 0, fui::TextAlign::Left);
   const int ch = passing ? 108 : 102, cw = 74;
   const int pitch = hand.count > 1 ? std::min(84, (handBox.width - 24 - cw) / (hand.count - 1)) : cw;
   const int start = handBox.x + (handBox.width - (cw + std::max(0, int(hand.count) - 1) * pitch)) / 2;

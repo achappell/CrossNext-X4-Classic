@@ -48,6 +48,7 @@ program = r'''
 namespace fui { using ActionId = uint16_t; constexpr ActionId NO_ACTION = 0; struct DrawTarget {}; struct Rect {}; }
 namespace petui { enum class NoticeKind { Information, Fed }; struct FeedResult { uint8_t before=0,after=0; bool visible=false; }; constexpr fui::ActionId Back = 1, Read = 2, AcknowledgeDeath = 4; constexpr unsigned PETTING_HAND_ART = 63; }
 namespace shelf { void leave(int, int) {} }
+namespace sidebuttons { bool classicEnabled = false; bool classic() { return classicEnabled; } }
 struct Settings { bool weekStartsSunday = false; } SETTINGS;
 inline uint32_t millis() { return 1000; }
 namespace readingstats { enum class ScanResult { Record, More, Finished, Error }; }
@@ -96,7 +97,7 @@ struct PetActivity {
   uint8_t selectedGoal=1;
   pet::Tab tab=pet::Tab::Pet;
   struct Clearable { void clear() {} } pendingTap,pendingSlide;
-  struct Cursor { void setFocusedIndex(int) {} } interactions;
+  struct Cursor { int clears=0; void setFocusedIndex(int) { ++clears; } } interactions;
   uint32_t viewRevision=0;
   int careResult=0,gameResult=0;
   petui::FeedResult feedResult;
@@ -140,6 +141,17 @@ void seed(PetActivity& app, bool egg=false) {
   if(!egg)app.readings.records.push_back(reading(app.profile.lastReadAt-1200,1200));
 }
 int main() {
+  {
+    PetActivity app;
+    sidebuttons::classicEnabled=true;
+    app.show(app.view);
+    assert(app.interactions.clears==0);
+    app.show(pet::View::Care);
+    assert(app.interactions.clears==1);
+    sidebuttons::classicEnabled=false;
+    app.show(app.view);
+    assert(app.interactions.clears==2);
+  }
   {
     auto owned=std::make_unique<PetActivity>(); auto& app=*owned;
     app.profile.created=true; app.viewRevision=10;

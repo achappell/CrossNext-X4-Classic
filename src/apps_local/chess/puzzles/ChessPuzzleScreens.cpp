@@ -209,6 +209,9 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
     const auto grid = screen.body();
     const int gap = 10, cols = wide ? 8 : 4, rows = wide ? 2 : 4;
     const int w = (grid.width - gap * (cols - 1)) / cols, h = (grid.height - gap * (rows - 1)) / rows;
+    if (model.classicControls)
+      screen.frame().navigationGrid(
+          fui::makeRect(grid.x, grid.y, cols * w + (cols - 1) * gap, rows * h + (rows - 1) * gap), cols, rows);
     for (int n = 0; n < 16 && page * 16 + n < count; ++n) {
       const int local = page * 16 + n, index = start + local;
       const auto r = fui::makeRect(grid.x + n % cols * (w + gap), grid.y + n / cols * (h + gap), w, h);
@@ -224,7 +227,7 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
                      work.labels[0], selected ? fui::Color::White : fui::Color::Black);
       if (chesspuzzle::solved(*model.progress, index))
         dashboard::icon(screen, fui::makeRect(r.right() - 24, r.y + 4, 20, 20), extra_check_32, selected);
-      screen.frame().hit(r, Pick, index, fui::InputTouch);
+      screen.frame().hit(r, Pick, index, model.classicControls ? fui::InputTouch | fui::InputPointerOnly : fui::InputTouch);
     }
     return;
   }
@@ -377,7 +380,9 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
   screen.target().stroke(board, black, pixelui::kBorder);
   const auto feedback = wide ? fui::makeRect(info.x, info.y + 146, info.width, 64)
                              : fui::makeRect(body.x, board.bottom() + 6, body.width, 52);
-  pixelui::text(screen.target(), fui::makeRect(feedback.x, feedback.y, feedback.width, 28), status(session.status),
+  pixelui::text(screen.target(), fui::makeRect(feedback.x, feedback.y, feedback.width, 28),
+                model.classicControls && session.status == chesspuzzle::Status::Playing
+                    ? tr(STR_BUTTON_CHESS_MOVE) : status(session.status),
                 pixelui::kSmall);
   pixelui::text(screen.target(), fui::makeRect(feedback.x, feedback.y + 28, feedback.width, 24),
                 model.invalidNumber ? tr(STR_CHESS_PUZZLE_BAD_NUMBER)
@@ -405,5 +410,6 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
     navigation(screen, work, fui::makeRect(controls.x, controls.y + 56, controls.width, 54),
                tr(STR_CHESS_PUZZLE_RESTART), Restart);
   }
+  if (model.classicControls && !chesspuzzle::terminal(session)) screen.frame().navigationGrid(board, 8, 8);
 }
 }  // namespace chesspuzzleui

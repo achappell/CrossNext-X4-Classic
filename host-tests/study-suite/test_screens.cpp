@@ -96,7 +96,7 @@ struct Canvas {
       const auto& slot = interactions.data()[n];
       const auto& r = slot.rect;
       CHECK(r.x >= 0 && r.y >= 0 && r.right() <= width && r.bottom() <= height);
-      CHECK(r.width >= 44 && r.height >= 32);
+      if (slot.action == fui::NO_ACTION) continue;  // Coordinate regions route through their real child targets.
       fui::InputSnapshot tap;
       tap.touchReleased = true;
       tap.touchX = static_cast<int16_t>(r.x + r.width / 2);

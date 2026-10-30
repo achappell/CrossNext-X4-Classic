@@ -124,7 +124,7 @@ void board(toybox::Screen& s, const Model& m) {
        : review || g.over        ? tr(STR_OT_FINAL_BOARD)
        : m.botSquare >= 0        ? tr(STR_OT_PLACING_HINT)
        : g.turn != m.humanColour ? tr(STR_OT_THINKING)
-                                 : tr(STR_OT_TAP),
+                                 : (s.device().hasTouch ? tr(STR_OT_TAP) : tr(STR_BUTTON_COMMIT_MOVE)),
        4, 2);
   gamepanel::row(s, l.menu, review ? tr(STR_OT_BACK_RESULT) : tr(STR_WORDLE_MENU), review ? ViewResult : Menu, 0,
                  gamepanel::Mark::Menu, false, nullptr, false);
@@ -313,8 +313,8 @@ void help(toybox::Screen& s, const Model& m) {
       const auto callout = wide ? rect(lx, top + 124, lw, bottom - top - 124) : rect(b.x, bottom - 118, b.width, 118);
       dashboard::frame(s, callout);
       title(s, rect(callout.x + 6, callout.y + 6, callout.width - 12, 26), tr(STR_OT_WHERE), 1);
-      text(s, rect(callout.x + 12, callout.y + 34, callout.width - 24, callout.height - 40), tr(STR_OT_WHERE_COPY), 4,
-           6);
+      text(s, rect(callout.x + 12, callout.y + 34, callout.width - 24, callout.height - 40),
+           s.device().hasTouch ? tr(STR_OT_WHERE_COPY) : tr(STR_BUTTON_OTHELLO_SQUARE), 4, 6);
       break;
     }
     case 1: {

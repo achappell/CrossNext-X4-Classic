@@ -2,6 +2,47 @@
 
 The current per-screen behavior is documented in [Side-button navigation](button-navigation.md).
 
+## X4 Classic local button-only target
+
+Classic is the SDK's ESP32-S3 X4 Classic profile, not the older ESP32-C3 X4/X3.
+It has logical **Back, Confirm, Left, Right, Up, Down**, plus **Power**; there is
+no touch, frontlight or extra Home key. Hardware behavior remains unvalidated.
+The Pro/touch design history below does not prohibit Classic's explicit
+coordinate controls.
+
+- On Classic Home, previous/next includes the displayed recent book/Continue
+  reading target; Confirm opens it. Back retains the existing Resume shortcut.
+- In Apps/Games folders, bottom Left/Right move up/down the whole list, including
+  across pages. At the list ends they reach the chooser and page controls;
+  Confirm activates the visible row or control. Side short/held navigation stays
+  available. Other lists, browsers, settings and overlays retain their controls.
+- In app/game chrome, bottom Left/Right move visible focus and Confirm activates.
+  Side Up/Down keep the existing tab, page or app shortcut; they do not also move
+  chrome focus on that press. Existing remaps, orientation and held-key gates apply.
+- A board, calendar or card/pile control first takes Confirm to enter its bounded
+  coordinate editor **without changing content**. Arrows move the visible cursor;
+  the next Confirm performs the existing action. Back first cancels a pending
+  source/aim, then exits editing, then leaves the view. Bottom linear traversal
+  remains available when remapping removes a side axis. Existing text-entry
+  keyboards retain their own directional selection; Confirm types the selected key.
+- 2048 uses the four screen-relative arrows directly, rather than chrome focus.
+  Slider/image adjustments are explicit modes and preserve existing live-apply
+  behavior. Back exits adjustment before leaving the view.
+- Hold Confirm only where the existing surface has an alternate hold action,
+  such as Minesweeper flagging, Picross marking or wallpaper options. Its release
+  must not perform the short action as well.
+- Queued focus retains every captured step; captured Confirm is dispatched once
+  when rendering releases the view. The shared development-input parser rejects
+  synthetic TAP/LONG/SWIPE on no-touch boards, including normalized serial and
+  authenticated HTTP command paths; button injection remains available.
+
+Classic hides Pro-only side-key action selectors while preserving their stored
+values and the existing physical remaps. It does not change reader semantics.
+The native `simulator_x4_classic` profile and `CROSSPOINT_SIM_DEVICE=x4c` scripted
+runs accept only these keys (and the runner's Quit); touch-assisted Classic
+acceptance is not valid. See [installation limits](install.md#x4-classic-gate-and-current-build-producers).
+
+
 ## Assigning the X4 Pro side keys
 
 In **Settings > Controls > Left side button / Right side button**, each key can

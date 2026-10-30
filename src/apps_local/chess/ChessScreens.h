@@ -81,7 +81,7 @@ const char* rowValue(const SettingsModel& model, MenuRow row);
 void buildSettings(toybox::Screen& screen, const SettingsModel& model);
 
 // The start menu shows the saved board beside the available local actions.
-enum class StartRow : uint8_t { Continue, NewGame, Puzzles, Settings, Count };
+enum class StartRow : uint8_t { Continue, NewGame, Puzzles, Settings, TakeBack, Count };
 
 struct StartModel {
   // No saved game means no CONTINUE row, rather than one that does nothing.
@@ -91,6 +91,7 @@ struct StartModel {
   // looking at rather than being a word.
   const char* continueDetail = "";
   int selected = 0;
+  bool classicControls = false;
 };
 
 int startRows(const StartModel& model);

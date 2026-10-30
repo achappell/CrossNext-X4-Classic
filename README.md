@@ -13,7 +13,9 @@ a break with a game, all on the same e-ink device.
 
 Choose a framed Home screen or a cover carousel, arrange your own app and game
 shortcuts, and adjust the fonts, reading controls and sleep wallpapers to suit you.
-This release supports **X4 Pro only** (ESP32-S3).
+The published X4 Pro path remains separate from the **X4 Classic local build**
+(ESP32-S3, 16 MB flash, 8 MB PSRAM). Classic software builds and a key-only
+simulator are available; physical-device support and recovery are not yet validated.
 
 CrossNext is based on [CrossPlay 1.14.2](https://github.com/ma-r-s/crossplay)
 and [CrossPoint 1.6.5](https://github.com/crosspoint-reader/crosspoint-reader),
@@ -115,15 +117,19 @@ Choose the package matching the device:
 | Model | ZIP | Application / SD update | Factory / USB installation |
 | --- | --- | --- | --- |
 | X4 Pro | `CrossNext-X4PRO-Firmware-v1.3.1.zip` | `CrossNext-X4PRO-Firmware-v1.3.1.bin` | `CrossNext-X4PRO-Firmware-v1.3.1-factory.bin` |
+| X4 Classic, local only | `CrossNext-X4C-Firmware-v1.3.1.zip` | `CrossNext-X4C-Firmware-v1.3.1.bin` | `CrossNext-X4C-Firmware-v1.3.1-factory.bin` |
 
 Generated ZIPs are in `dist/`, and raw images in `dist/CrossNext/`.
 Each firmware ZIP includes SHA-256 checksums, model-specific images and notes.
 Application images belong in a compatible SD updater/OTA slot, or at `0x10000`;
 factory images contain the bootloader and partitions and belong at `0x0` over USB.
 Read [the installation guide](docs/install.md) and back up the microSD first.
-The plain X4/X3 use another chip; these packages do not target them or PaperMono.
+Classic uses a compatible microSD updater for the application image. Its factory
+USB route is gated on separate device identity, USB-lock, backup and recovery
+checks; no Classic flash or public release is authorized by a successful build.
+The older ESP32-C3 X4/X3 and PaperMono are not these S3 targets.
 
-Use **Settings → Device → Check for Updates** to get updates from
+**X4 Pro only:** use **Settings → Device → Check for Updates** to get updates from
 [CrossNext GitHub Releases](https://github.com/manuelx900/CrossNext/releases).
 The updater checks for a newer version and asks before installing the X4 Pro
 application. Release maintainers attach `CrossNext-X4PRO-OTA.bin` alongside the
@@ -147,15 +153,21 @@ runs the firmware from these sources. The showcase supplies books with original
 notices, synthetic statistics, files and saved app/game examples for screenshots.
 It uses separate demonstration data rather than the reader's personal records.
 
+For the native Classic profile, build `pio run -e simulator_x4_classic` and select
+`CROSSPOINT_SIM_DEVICE=x4c` with `scripts_local/sim-shot.sh`. Its inputs are
+Back, Confirm, Left, Right, Up, Down and Power; it has no touch, frontlight or Home
+key. See [Classic controls](docs/buttons.md#x4-classic-local-button-only-target).
+
 See [the showcase guide](docs/simulator-showcase.md). Browser-specific network
 and sleep adaptations are described in [the site documentation](site/README.md).
 The original [CrossPlay demo](https://crossplay.ma-r-s.com) is maintained upstream.
 
 ## Develop and verify
 
-Use `x4pro` for the device and `simulator_x4_pro` for the simulator;
-the upstream `default` environment targets a different chip. In a configured
-development checkout, run `./scripts_local/check.sh` from your own worktree.
+Use `x4pro` / `simulator_x4_pro` for Pro, or `x4c` /
+`simulator_x4_classic` for Classic; `gh_release_x4c` produces the local Classic
+package inputs. The upstream `default` environment targets a different chip.
+In a configured checkout, run `./scripts_local/check.sh` from your own worktree.
 Use the repository's `./bin/clang-format-fix -g` wrapper for changed C/C++ files.
 Read the [contributor guide](docs/contributing/getting-started.md) and
 [local script documentation](scripts_local/README.md) before changing firmware.
@@ -168,6 +180,15 @@ Useful feature details: [Flashcards](docs/apps/flashcards-ui.md),
 [the render audit](docs/render-performance.md).
 Builds, native tests and simulator checks do not replace physical-device testing
 of display refresh, SD behavior, memory and all orientations before publication.
+
+The 2026-10-30 final software gate, after independent review corrections, accounts
+for all 29 companion rows with key-only runtime and production-fixture evidence.
+All 32 affected native runners, current Classic device/release and Classic/Pro
+native builds pass. The local package was checked against exact current factory
+inputs, generated slots and archive hashes. See `qa-artifacts/x4c-coverage.json`
+and `qa-artifacts/x4c-integration/final/verification-summary.json`. This is not
+hardware installation or publication approval; formatting tools were unavailable,
+so no formatter pass is claimed.
 
 ## Licence and attribution
 

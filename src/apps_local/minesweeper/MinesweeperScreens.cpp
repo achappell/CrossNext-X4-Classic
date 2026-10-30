@@ -148,7 +148,9 @@ void boardStrip(toybox::Screen& screen, const BoardModel& model) {
   dashboard::text(screen, fui::makeRect(counter.x + 62, counter.y, counter.width - 74, counter.height), value, 0,
                   fui::TextAlign::Left);
   dashboard::text(screen, fui::makeRect(area.x, area.y + 62, area.width, 28),
-                  model.flagMode ? tr(STR_GUIDE_MINES_TAP_FLAG) : tr(STR_GUIDE_MINES_TAP_DIG), 3);
+                  model.classicControls
+                      ? (model.flagMode ? tr(STR_BUTTON_CELL_FLAG) : tr(STR_BUTTON_CELL_DIG))
+                      : (model.flagMode ? tr(STR_GUIDE_MINES_TAP_FLAG) : tr(STR_GUIDE_MINES_TAP_DIG)), 3);
   for (int n = 0; n < 2; ++n) {
     const bool active = n == 0 ? model.flagMode : !model.flagMode;
     const auto box = fui::makeRect(area.x + n * area.width / 2, area.y + 100, area.width / 2, 64);
@@ -285,9 +287,19 @@ void buildHowTo(toybox::Screen& screen, const HowToModel& model) {
       const auto r = fui::makeRect(area.x, area.y + n * h, w, h);
       const auto art = fui::makeRect(r.x + 4, r.y + 4, h - 12, h - 12);
       dashboard::frame(screen, art, 2);
-      if (n < 2)
-        guideui::touchHand(screen, art.inset(fui::Insets{4, 4, 4, 4}), n == 1);
-      else {
+      if (n < 2) {
+        if (!model.classicControls)
+          guideui::touchHand(screen, art.inset(fui::Insets{4, 4, 4, 4}), n == 1);
+        else {
+          dashboard::frame(screen, art.inset(fui::Insets{16, 16, 16, 16}), 2);
+          screen.target().line({int16_t(art.x + art.width / 3), int16_t(art.y + art.height / 2)},
+                               {int16_t(art.x + art.width / 2), int16_t(art.y + 2 * art.height / 3)}, 4,
+                               dashboard::ink);
+          screen.target().line({int16_t(art.x + art.width / 2), int16_t(art.y + 2 * art.height / 3)},
+                               {int16_t(art.x + 3 * art.width / 4), int16_t(art.y + art.height / 3)}, 4,
+                               dashboard::ink);
+        }
+      } else {
         guideui::arrow(screen, fui::makeRect(art.x + 8, art.y + 8, art.width - 16, art.height / 2 - 8));
         screen.target().line({int16_t(art.right() - 12), int16_t(art.bottom() - 14)},
                              {int16_t(art.x + 12), int16_t(art.bottom() - 14)}, 4, dashboard::ink);
@@ -295,8 +307,11 @@ void buildHowTo(toybox::Screen& screen, const HowToModel& model) {
                                  {int16_t(art.x + 20), int16_t(art.bottom() - 24)},
                                  {int16_t(art.x + 20), int16_t(art.bottom() - 4)}, dashboard::ink);
       }
+      const char* label = !model.classicControls || n == 2
+                              ? I18N.get(names[n])
+                              : (n == 0 ? tr(STR_CONFIRM) : tr(STR_BUTTON_HOLD_CONFIRM));
       dashboard::text(screen, fui::makeRect(art.right() + 14, r.y + 4, wide ? 140 : r.right() - art.right() - 18, 28),
-                      I18N.get(names[n]), wide ? 0 : 1, fui::TextAlign::Left);
+                      label, wide ? 0 : 1, fui::TextAlign::Left);
       guideui::text(screen,
                     fui::makeRect(art.right() + (wide ? 166 : 14), r.y + (wide ? 0 : 34),
                                   r.right() - art.right() - (wide ? 170 : 18), wide ? h : h - 38),
@@ -312,7 +327,8 @@ void buildHowTo(toybox::Screen& screen, const HowToModel& model) {
   const int descH = wide ? area.height : page == 4 ? 152 : 112;
   const auto description = wide ? fui::makeRect(area.x, area.y, area.width * 2 / 5 - 14, area.height)
                                 : fui::makeRect(area.x, area.y, area.width, descH);
-  guideui::text(screen, description, I18N.get(copy[page]), wide ? 7 : 4, fui::TextAlign::Center, 4);
+  const char* bodyCopy = model.classicControls && page == 4 ? tr(STR_BUTTON_MINES_CHORD) : I18N.get(copy[page]);
+  guideui::text(screen, description, bodyCopy, wide ? 7 : 4, fui::TextAlign::Center, 4);
   const auto art = wide ? fui::makeRect(area.x + area.width * 2 / 5, area.y, area.width * 3 / 5, area.height - 68)
                         : fui::makeRect(area.x, area.y + descH + 8, area.width, area.height - descH - 84);
   static constexpr const char* numbers[] = {"M..", ".oM", "..M"};

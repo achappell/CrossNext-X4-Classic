@@ -15,7 +15,6 @@ enum : freeink::ui::ActionId {
   Cancel,
   Square,
   HelpPage,
-  HelpDone,
   Colour,
   Menu,
   Review,

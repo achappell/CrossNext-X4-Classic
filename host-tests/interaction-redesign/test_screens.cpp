@@ -256,7 +256,6 @@ int main(int argc, char** argv) {
         m.helpPage = page;
         draughtsui::build(c.screen, m);
         c.checkHits();
-        CHECK(c.has(draughtsui::HelpDone));
         CHECK(c.has(draughtsui::HelpPage, -1) == (page > 0));
         if (argc > 1)
           c.write(std::string(argv[1]) + "/draughts-help-" + std::to_string(page) + "-" + std::to_string(w) + "-" +

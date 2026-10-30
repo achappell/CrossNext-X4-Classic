@@ -87,6 +87,7 @@ struct BoardModel {
   bool showConfirm = false;
   const char* confirmLabel = tr(STR_UI_PASS_BD564D);
   bool confirmEnabled = false;
+  bool classic = false;
 };
 
 // The table: scores, the trick, and your hand.

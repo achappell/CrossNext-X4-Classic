@@ -15,10 +15,19 @@ struct MappedInputManager {
   Button released = Button::Down;
   bool wasReleased(Button key) const { return key == released; }
 };
+namespace sidebuttons {
+int shortStep(const MappedInputManager& input) {
+  return input.wasReleased(MappedInputManager::Button::Down) ? 1 :
+         input.wasReleased(MappedInputManager::Button::Up) ? -1 : 0;
+}
+int longStep(const MappedInputManager&) { return 0; }
+}
 struct CampaignButtons {
   enum class View { Cases, Case };
   View view = View::Cases;
   MappedInputManager mappedInput;
+  bool interactionsReady = true;
+  struct Interactions { bool routable() const { return true; } } interactions;
   murdlecampaign::Progress campaign;
   murdle::Tier campaignTier = murdle::Tier::Elementary;
   int campaignSelected = 0, campaignPage = 0, opened = -1, paints = 0;
@@ -53,21 +62,21 @@ int main() {
     const int first = tier * murdlecampaign::kCasesPerTier;
     assert(app.campaignSelected == first && app.campaignPage == 0);
     app.mappedInput.released = MappedInputManager::Button::Down;
-    for (int n = 1; n < 110; ++n) {
+    for (int n = 1; n < 10; ++n) {
       app.step();
-      assert(app.campaignSelected == first + std::min(99, n));
-      assert(app.campaignPage == (app.campaignSelected - first) / 16);
+      const int page = std::min(murdlecampaign::kPagesPerTier - 1, n);
+      assert(app.campaignPage == page && app.campaignSelected == first + page * murdlecampaign::kCasesPerPage);
       checks += 2;
     }
     app.mappedInput.released = MappedInputManager::Button::Confirm;
     app.step();
-    assert(app.opened == first + 99);
+    assert(app.opened == -1);  // Only a focused visible picker action opens a case.
     ++checks;
     app.mappedInput.released = MappedInputManager::Button::Up;
-    for (int n = 1; n < 110; ++n) {
+    for (int n = 1; n < 10; ++n) {
       app.step();
-      assert(app.campaignSelected == first + std::max(0, 99 - n));
-      assert(app.campaignPage == (app.campaignSelected - first) / 16);
+      const int page = std::max(0, murdlecampaign::kPagesPerTier - 1 - n);
+      assert(app.campaignPage == page && app.campaignSelected == first + page * murdlecampaign::kCasesPerPage);
       checks += 2;
     }
     for (int pg = 0; pg < 9; ++pg) {
@@ -76,9 +85,9 @@ int main() {
       assert(app.campaignSelected == first + app.campaignPage * 16);
       checks += 2;
     }
-    app.campaignSelected = first + 16;
+    app.campaignPage = 1;
     app.step();
-    assert(app.campaignSelected == first + 15 && app.campaignPage == 0);
+    assert(app.campaignSelected == first && app.campaignPage == 0);
     checks += 2;
     assert(app.campaign.next() == 0);
   }

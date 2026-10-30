@@ -679,7 +679,7 @@ void WordsActivity::loop() {
       return;
     }
   }
-  const auto routed = routeTouch(mappedInput, false, false, false);
+  const auto routed = routeTouch(mappedInput, false, false, sidebuttons::classic());
   if (routed.routed && app.invalidated()) requestUpdate();
   if (routed) {
     model.keyboardFocus = false;

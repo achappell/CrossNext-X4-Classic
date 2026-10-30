@@ -124,7 +124,8 @@ const char* BattleshipActivity::capsuleLabel() {
     return capsule;
   }
   if (aimCell < 0) {
-    std::snprintf(capsule, sizeof(capsule), tr(STR_UI_TAP_A_TARGET_0B935C));
+    std::snprintf(capsule, sizeof(capsule), "%s",
+                  sidebuttons::classic() ? tr(STR_BUTTON_SELECT_TARGET) : tr(STR_UI_TAP_A_TARGET_0B935C));
     return capsule;
   }
   char where[4] = {};
@@ -144,6 +145,7 @@ bshipui::BoardModel BattleshipActivity::boardModel() {
   model.aim = aimCell;
   model.myTurn = myTurn();
   model.ownFleet = showOwnFleet;
+  model.classicControls = sidebuttons::classic();
   return model;
 }
 
@@ -175,6 +177,7 @@ void BattleshipActivity::drawPlaceScreen() {
   toybox::Frame frame(target, target.deviceContext(), noInput, interactions, nullptr, toybox::headerStatus(renderer));
   toybox::Screen screen(frame);
   bshipui::buildPlaceChrome(screen, placeModel(), &layout);
+  if (sidebuttons::classic() && !fleetCommitted) frame.navigationGrid(layout.place, bship::kSize, bship::kSize);
   interactionsReady = true;
   toybox::reportOverflow(interactions, "Battleship placement", &renderer);
 }
@@ -211,7 +214,7 @@ void BattleshipActivity::render(RenderLock&&) {
       const fui::InputSnapshot input{};
       toybox::Frame frame(target, target.deviceContext(), input, interactions, nullptr, toybox::headerStatus(renderer));
       toybox::Screen screen(frame);
-      bshipui::buildHowTo(screen, helpPage);
+      bshipui::buildHowTo(screen, helpPage, sidebuttons::classic());
       interactionsReady = true;
       break;
     }
@@ -245,7 +248,7 @@ void BattleshipActivity::beginPlacement() {
   aimCell = -1;
   computerThinking = false;
   bship::randomFleet(myFleet, seed);
-  std::snprintf(report, sizeof(report), tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C));
+  std::snprintf(report, sizeof(report), (sidebuttons::classic() ? tr(STR_BUTTON_SELECT_SHIP) : tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C)));
   view = View::Place;
   requestUpdate();
 }
@@ -308,13 +311,13 @@ void BattleshipActivity::routeStartMenu() {
 void BattleshipActivity::shuffleFleet() {
   bship::randomFleet(myFleet, seed);
   selectedShip = 0;
-  std::snprintf(report, sizeof(report), tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C));
+  std::snprintf(report, sizeof(report), (sidebuttons::classic() ? tr(STR_BUTTON_SELECT_SHIP) : tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C)));
   requestUpdate();
 }
 
 void BattleshipActivity::selectShip(const int shipIndex) {
   selectedShip = shipIndex;
-  std::snprintf(report, sizeof(report), tr(STR_UI_TAP_A_CELL_OR_THE_SHIP_72896B));
+  std::snprintf(report, sizeof(report), (sidebuttons::classic() ? tr(STR_BUTTON_POSITION_SHIP) : tr(STR_UI_TAP_A_CELL_OR_THE_SHIP_72896B)));
   requestUpdate();
 }
 
@@ -357,7 +360,7 @@ void BattleshipActivity::moveSelected(const int cell) {
     return;
   }
   myFleet.ships[selectedShip] = candidate;
-  std::snprintf(report, sizeof(report), tr(STR_UI_TAP_A_CELL_OR_IT_AGAIN_F0B654));
+  std::snprintf(report, sizeof(report), (sidebuttons::classic() ? tr(STR_BUTTON_POSITION_SHIP) : tr(STR_UI_TAP_A_CELL_OR_IT_AGAIN_F0B654)));
   requestUpdate();
 }
 
@@ -372,7 +375,7 @@ void BattleshipActivity::handlePlaceTap(const int cell) {
     return;
   }
   if (selectedShip < 0) {
-    std::snprintf(report, sizeof(report), tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C));
+    std::snprintf(report, sizeof(report), (sidebuttons::classic() ? tr(STR_BUTTON_SELECT_SHIP) : tr(STR_UI_TAP_A_SHIP_TO_MOVE_IT_8AD98C)));
     requestUpdate();
     return;
   }
@@ -663,6 +666,15 @@ void BattleshipActivity::routeBoard() {
 
 void BattleshipActivity::loop() {
   namespace fui = freeink::ui;
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      interactions.coordinateEditing() && (aimCell >= 0 || (view == View::Place && selectedShip >= 0))) {
+    if (view == View::Place) selectedShip = -1;
+    else aimCell = -1;
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   switch (view) {
     case View::Help: {
       if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {

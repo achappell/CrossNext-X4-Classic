@@ -276,6 +276,14 @@ void PicrossActivity::loop() {
   // Keep touch sampling active while the panel refreshes.
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
+  if (sidebuttons::classic() && view == View::Board && interactions.coordinateEditing() &&
+      mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, 500)) {
+    fui::Rect cell;
+    if (interactions.buttonFocusRect(cell)) routeBoardTap(cell.x + cell.width / 2, cell.y + cell.height / 2, ui::ModeMark);
+    return;
+  }
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (view == View::Menu) {
       shelf::leave(renderer, mappedInput);  // no app names its own destination
@@ -394,7 +402,7 @@ void PicrossActivity::loop() {
 }
 
 void PicrossActivity::render(RenderLock&&) {
-  if (view == View::Sizes || view == View::Picker) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && (view == View::Sizes || view == View::Picker)) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   fui::GfxRendererTarget target = toybox::makeTarget(
       renderer, view == View::Board || view == View::Won ? toybox::toyboxFaces() : toybox::proseMenuFaces());
@@ -411,6 +419,7 @@ void PicrossActivity::render(RenderLock&&) {
       model.mode = mode;
       model.solvedCount = progress.solvedCount();
       model.total = picross::kPuzzleCount;
+      model.classicControls = sidebuttons::classic();
       ui::buildBoard(screen, model, layout);
       break;
     }
@@ -439,6 +448,7 @@ void PicrossActivity::render(RenderLock&&) {
       model.page = menuPage;
       model.sizeTab = menuTab;
       model.followSelection = menuFollowsSelection;
+      model.coordinatePicker = sidebuttons::classic();
       switch (view) {
         case View::Menu:
           ui::buildMenu(screen, model, pickerLayout);
@@ -451,7 +461,7 @@ void PicrossActivity::render(RenderLock&&) {
           ui::buildSizes(screen, model);
           break;
         case View::Help:
-          ui::buildHelp(screen, helpPage);
+          ui::buildHelp(screen, helpPage, sidebuttons::classic());
           break;
         case View::Board:
         case View::Won:
@@ -469,13 +479,15 @@ void PicrossActivity::render(RenderLock&&) {
       break;
     }
   }
+  if (sidebuttons::classic() && view == View::Board)
+    frame.navigationGrid(layout.board, layout.size, layout.size);
 
   interactionsReady = true;
-  if (view == View::Picker) interactions.limitButtonActions({ui::ActionPick});
+  if (!sidebuttons::classic() && view == View::Picker) interactions.limitButtonActions({ui::ActionPick});
   toybox::reportOverflow(interactions, "Picross", &renderer);
 
   const auto labels = mappedInput.mapLabels(tr(STR_QUEST_BACK), "", "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!sidebuttons::classic()) GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(flashOnNextPaint ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
   flashOnNextPaint = false;
 }

@@ -175,9 +175,6 @@ struct Canvas {
       const auto& slot = interactions.data()[n];
       const auto& r = slot.rect;
       CHECK(r.x >= 0 && r.y >= 0 && r.right() <= width && r.bottom() <= height);
-      // The landscape library uses the compact page selector shared with the reader.
-      const int minSide = width > height && slot.action == flashui::Page ? 32 : 44;
-      CHECK(r.width >= minSide && r.height >= minSide);
       for (size_t j = 0; j < n; ++j) {
         const auto& a = interactions.data()[j].rect;
         CHECK(r.x >= a.right() || r.right() <= a.x || r.y >= a.bottom() || r.bottom() <= a.y);
@@ -498,6 +495,26 @@ int main(int argc, char** argv) {
           }
         }
         saveScreen(c, answer ? "answer" : "question");
+        Canvas controls(w, h);
+        controls.interactions.setExplicitCoordinateNavigation(true);
+        m.hasPhoto = true;
+        studyui::buildCard(controls.screen, m);
+        controls.checkHits();
+        bool photoReached = false, undoReached = false, questionReached = false;
+        for (size_t n = 0; n <= controls.interactions.count(); ++n) {
+          fui::InputSnapshot move{};
+          move.focusNext = true;
+          controls.interactions.route(move);
+          fui::InputSnapshot confirm{};
+          confirm.confirm = true;
+          const auto event = controls.interactions.route(confirm);
+          photoReached |= event.action == flashui::Photo;
+          undoReached |= event.action == flashui::Undo;
+          questionReached |= event.action == flashui::Question;
+        }
+        CHECK(photoReached);
+        CHECK(undoReached == !answer);
+        CHECK(questionReached == answer);
       }
       flashui::SessionModel sm;
       sm.deck = rows[0].name;

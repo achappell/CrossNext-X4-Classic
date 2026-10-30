@@ -268,19 +268,6 @@ def main(env):
         marker="verifyPowerButtonWakeup() {",
     )
 
-    # Upstream's X4 Classic support (2026-09-04 sync) calls BoardConfig::isX4Classic()
-    # from the reader. The simulator ships its own BoardConfig.h that shadows the
-    # SDK's, and its Board enum has no XteinkX4Classic at all -- the simulator is an
-    # X4 Pro. So the honest answer here is a constant false, not a board test: there
-    # is no X4 Classic to be.
-    patch(
-        src / "BoardConfig.h",
-        "inline bool hasTouch()",
-        "inline bool isX4Classic() { return false; }  // no X4 Classic profile in the simulator\n"
-        "inline bool hasTouch()",
-        "BoardConfig::isX4Classic (simulator has no such board)",
-        marker="isX4Classic",
-    )
 
     patch(
         src / "HalStorage.h",

@@ -796,6 +796,9 @@ public:
 
   void setDevice(DeviceContext device) { device_ = device; }
   const DeviceContext &device() const { return device_; }
+  void setExplicitCoordinateNavigation(bool enabled) {
+    interactions_.setExplicitCoordinateNavigation(enabled);
+  }
 
   // Copy mode: the app keeps its own (heap-owned) tokens.
   void setTheme(const ThemeTokens &theme) {

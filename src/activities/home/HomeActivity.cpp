@@ -1,6 +1,7 @@
 #include "HomeActivity.h"
 
 #include <Bitmap.h>
+#include <BoardConfig.h>
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -294,8 +295,10 @@ void HomeActivity::freeCoverBuffer() {
 
 void HomeActivity::loop() {
   const int options = homemenu::count(hasLibrarySlot());
-  const auto move = [this, options](int direction) {
-    if (!menuInput.move(direction, options)) LOG_ERR("HOME", "Menu input queue full");
+  const bool includeBooks = BoardConfig::isX4Classic();
+  const int navigationCount = options + (includeBooks ? displayBookCount() : 0);
+  const auto move = [this, navigationCount](int direction) {
+    if (!menuInput.move(direction, navigationCount)) LOG_ERR("HOME", "Menu input queue full");
   };
   buttonNavigator.onNext([&move] { move(1); });
   buttonNavigator.onPrevious([&move] { move(-1); });
@@ -365,7 +368,8 @@ void HomeActivity::loop() {
   while (menuInput.pop(event)) {
     switch (event.kind) {
       case homeui::MenuInput::Kind::Move:
-        selectorIndex = homeui::MenuInput::selection(selectorIndex, displayBookCount(), options, event.steps);
+        selectorIndex = homeui::MenuInput::selection(selectorIndex, displayBookCount(), options, event.steps,
+                                                     includeBooks);
         break;
       case homeui::MenuInput::Kind::Confirm:
         menuInput.clear();
@@ -380,7 +384,12 @@ void HomeActivity::loop() {
         break;
     }
   }
-  if (previousSelection != selectorIndex) requestUpdate();
+  if (previousSelection != selectorIndex) {
+    // The menu-only fast repaint cannot draw or clear a book's outline.
+    if (includeBooks && (previousSelection < displayBookCount() || selectorIndex < displayBookCount()))
+      dashboardDirty = true;
+    requestUpdate();
+  }
 
   const auto swipe = mappedInput.wasSwipe();
   if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
@@ -441,7 +450,7 @@ void HomeActivity::render(RenderLock&&) {
   if (coverGridUi) {
     coverGridUi->setSelection(selectorIndex);
     UITheme::getInstance().drawCoverGridHome(*coverGridUi);
-    // Physical navigation walks only the menu tabs; covers remain touch targets.
+    // Classic's physical ring includes covers; touch boards retain menu-only navigation.
     const auto labels = mappedInput.mapLabels(hasContinueReading ? tr(STR_RESUME) : "", tr(STR_SELECT),
                                               tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

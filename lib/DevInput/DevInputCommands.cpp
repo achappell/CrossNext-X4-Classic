@@ -138,6 +138,10 @@ bool runCommand(const char* raw, char* reply, const size_t replyLen) {
   if (raw == nullptr) return refused(reply, replyLen, "ERR no command");
   const char* cmd = skipLeading(raw);
   reply[0] = '\0';
+  if (!BoardConfig::hasTouch() &&
+      (strncmp(cmd, "TAP ", 4) == 0 || strncmp(cmd, "LONG ", 5) == 0 || strncmp(cmd, "SWIPE ", 6) == 0)) {
+    return refused(reply, replyLen, "ERR board has no touch");
+  }
   long v[5];
 
   if (strncmp(cmd, "TAP ", 4) == 0) {

@@ -254,7 +254,7 @@ void wordList(fui::DrawTarget& t, fui::Rect body, Model& m, Geometry& g) {
   if (!m.busy && m.page > 0) g.before = nav.before;
   if (!m.busy && m.page + 1 < pages) g.after = nav.after;
 }
-void guide(fui::DrawTarget& t, fui::Rect body, Model& m, Geometry& g) {
+void guide(fui::DrawTarget& t, fui::Rect body, Model& m, Geometry& g, bool hasTouch) {
   const bool wide = body.width > body.height;
   caps(t, fui::makeRect(body.x, body.y, body.width, 32), tr(STR_WORDS_GUIDE));
   const char* titles[] = {tr(STR_WORDS_GUIDE_SELECT), tr(STR_WORDS_GUIDE_SAVE), tr(STR_WORDS_GUIDE_REVIEW),
@@ -262,7 +262,8 @@ void guide(fui::DrawTarget& t, fui::Rect body, Model& m, Geometry& g) {
   caps(t, fui::makeRect(body.x, body.y + (wide ? 28 : 42), body.width, wide ? 42 : 52), titles[m.guidePage], 1);
   const int bottom = body.bottom() - 60, top = body.y + (wide ? 80 : 110);
   if (m.guidePage == 0) {
-    prose(t, fui::makeRect(body.x, top, body.width, 58), tr(STR_WORDS_SELECT_HELP), 2);
+    prose(t, fui::makeRect(body.x, top, body.width, 58),
+          (hasTouch ? tr(STR_WORDS_SELECT_HELP) : tr(STR_BUTTON_READER_WORD)), 2);
     const int boxH = wide ? 124 : 190;
     const auto box = fui::makeRect(body.x, top + (wide ? 62 : 72), wide ? body.width / 2 - 10 : body.width, boxH);
     t.stroke(box, black, pixelui::kBorder);
@@ -538,7 +539,7 @@ void draw(fui::DrawTarget& t, const fui::DeviceContext& d, Model& m, Geometry& g
       wordList(t, body, m, g);
       break;
     case View::Guide:
-      guide(t, body, m, g);
+      guide(t, body, m, g, d.hasTouch);
       break;
     case View::Review:
       card(t, body, m, g, work, content ? *content : t);

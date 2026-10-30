@@ -245,13 +245,19 @@ void buildResult(toybox::Screen& screen, const ResultModel& model) {
                     ActionResultReview, ActionResultMenu);
 }
 
-int startRows(const StartModel& model) { return model.hasSavedGame ? 4 : 3; }
+int startRows(const StartModel& model) {
+  return (model.hasSavedGame ? 4 : 3) + (model.classicControls && model.hasSavedGame && model.canTakeBack ? 1 : 0);
+}
 
 StartRow startRowAt(const StartModel& model, const int visibleIndex) {
   const int count = startRows(model);
   const int clamped = visibleIndex < 0 ? 0 : (visibleIndex >= count ? count - 1 : visibleIndex);
-  // With no game to continue, the first row is NEW GAME and everything shifts.
-  return static_cast<StartRow>(model.hasSavedGame ? clamped : clamped + 1);
+  int row = model.hasSavedGame ? clamped : clamped + 1;
+  if (model.classicControls && model.hasSavedGame && model.canTakeBack && row >= 2) {
+    if (row == 2) return StartRow::TakeBack;
+    --row;
+  }
+  return static_cast<StartRow>(row);
 }
 
 const char* startRowLabel(const StartRow row) {
@@ -264,6 +270,8 @@ const char* startRowLabel(const StartRow row) {
       return tr(STR_CHESS_PUZZLES);
     case StartRow::Settings:
       return tr(STR_UI_SETTINGS_C4B924);
+    case StartRow::TakeBack:
+      return rowLabel(MenuRow::TakeBack);
     default:
       return "";
   }
@@ -282,7 +290,8 @@ fui::Rect buildStartMenu(toybox::Screen& screen, const StartModel& model) {
     rows[n].label = startRowLabel(row);
     rows[n].action = ActionStartRow;
     rows[n].value = n;
-    rows[n].symbol = row == StartRow::NewGame ? frontdoor::Symbol::Restart : frontdoor::Symbol::Play;
+    rows[n].symbol = row == StartRow::NewGame || row == StartRow::TakeBack ? frontdoor::Symbol::Restart
+                                                                        : frontdoor::Symbol::Play;
     if (row == StartRow::Puzzles) rows[n].symbol = frontdoor::Symbol::Grid;
     if (row == StartRow::Settings) rows[n].symbol = frontdoor::Symbol::Settings;
     if (row == StartRow::Continue) rows[n].detail = model.continueDetail;

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared setup for the X4 Pro desktop simulator.
+# Shared setup for the desktop simulator; CROSSPOINT_SIM_DEVICE=x4c selects Classic.
 # Sourced by dev.sh, sim.sh, sim-shot.sh and sim-link.sh; not run directly.
 #
 # Everything here is derived from the *tree the script lives in*, never from a
@@ -12,7 +12,11 @@ set -uo pipefail
 # Resolve through the symlink: the workspace-root scripts/ entries are symlinks
 # to these, so BASH_SOURCE may be either path.
 SCRIPTS_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-ENV_NAME="simulator_x4_pro"
+case "${CROSSPOINT_SIM_DEVICE:-x4pro}" in
+  x4pro) ENV_NAME="simulator_x4_pro" ;;
+  x4c) ENV_NAME="simulator_x4_classic" ;;
+  *) echo "unsupported CROSSPOINT_SIM_DEVICE (use x4pro or x4c)" >&2; return 2 ;;
+esac
 
 # The workspace is the directory holding every tree. Found by walking up for the
 # marker rather than by counting ".." levels, because firmware-next/ sits one

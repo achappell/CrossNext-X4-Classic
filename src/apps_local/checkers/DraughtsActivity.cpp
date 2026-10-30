@@ -143,9 +143,6 @@ void DraughtsActivity::action(freeink::ui::ActionId event, int value) {
       if (next == helpPage) return;
       helpPage = next;
     } break;
-    case HelpDone:
-      view = View::Menu;
-      break;
     case Cancel:
       view = newGameReturnView;
       break;
@@ -175,6 +172,14 @@ uint32_t DraughtsActivity::surfaceMeaning() const {
 }
 void DraughtsActivity::loop() {
   RenderLock lock(*this);
+  if (sidebuttons::classic() && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      interactions.coordinateEditing() && selected >= 0 && game.forced < 0) {
+    selected = -1;
+    requestUpdate();
+    return;
+  }
+  if (sidebuttons::cancelEditor(interactions, mappedInput, *this) ||
+      sidebuttons::moveEditor(interactions, mappedInput, *this)) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (view == draughtsui::View::Menu) {
       shelf::leave(renderer, mappedInput);
@@ -249,7 +254,7 @@ void DraughtsActivity::loop() {
   action(event.action, event.value);
 }
 void DraughtsActivity::render(RenderLock&&) {
-  if (view == draughtsui::View::Settings) interactions.setFocusedIndex(-1);
+  if (!sidebuttons::classic() && view == draughtsui::View::Settings) interactions.setFocusedIndex(-1);
   renderer.clearScreen();
   auto target = toybox::makeTarget(renderer);
   pixelui::bindFonts(target, renderer);
@@ -268,6 +273,8 @@ void DraughtsActivity::render(RenderLock&&) {
                              view == draughtsui::View::Settings ? pendingHumanBlack
                              : active                           ? gameHumanBlack
                                                                 : humanBlack});
+  if (sidebuttons::classic() && view == draughtsui::View::Board)
+    frame.navigationGrid(draughtsui::boardRect(target.deviceContext(), game.size), game.size, game.size);
   toybox::reportOverflow(interactions, "Draughts", &renderer);
   ready = true;
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);

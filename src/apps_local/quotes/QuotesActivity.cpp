@@ -274,16 +274,28 @@ void QuotesActivity::route(int action, int value) {
   requestUpdate();
 }
 void QuotesActivity::loop() {
-  if (!navigation.capture(mappedInput, millis())) LOG_ERR("QUOTES", "Navigation queue full");
+  if (!navigation.capture(mappedInput, millis(), sidebuttons::classic(),
+                           sidebuttons::classic() && mappedInput.isNavDirectionSwapped()))
+    LOG_ERR("QUOTES", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
   if (view == View::Detail && (!interactionsReady || !surfaceRevealed())) return;
   sectionnav::Input::Event command;
   bool navigated = false;
-  while (navigation.pop(command, view == View::Detail ? 1 : 32767)) {
+  while ((navigation.backPending() || (interactionsReady && surfaceRevealed())) &&
+         navigation.pop(command, view == View::Detail ? 1 : 32767)) {
     if (command.kind == sectionnav::Input::Kind::Back) {
       navigation.clear();
       back();
+      return;
+    }
+    if (command.kind == sectionnav::Input::Kind::Focus && interactionsReady) {
+      sidebuttons::focus(interactions, command.amount, *this);
+      return;
+    }
+    if (command.kind == sectionnav::Input::Kind::Confirm) {
+      const auto event = sidebuttons::confirm(interactions, *this);
+      route(event.action, event.value);
       return;
     }
     if (scanning || failed || (view != View::List && view != View::Detail)) continue;
@@ -346,6 +358,7 @@ void QuotesActivity::loop() {
     turn(next ? 1 : -1);
     return;
   }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return;
   int x, y;
   if (!interactionsReady || !surfaceRevealed() || !sidebuttons::poll(interactions, mappedInput, x, y)) return;
   fui::InputSnapshot input{};
