@@ -19,5 +19,9 @@ if [ "$(uname -s)" = Linux ]; then
 fi
 OUT="${CLASSIC_NAV_OUTPUT:-$(mktemp -d "${TMPDIR:-/tmp}/classic-navigation-results.XXXXXX")}"
 echo "Classic navigation artifacts: $OUT"
-uv run --quiet --with pillow python host-tests/classic-navigation/test_runtime.py \
-  --program "$CLASSIC_NAV_PROGRAM" --output "$OUT"
+args=(--program "$CLASSIC_NAV_PROGRAM" --output "$OUT")
+if [ -n "${CLASSIC_NAV_PRO_PROGRAM:-}" ]; then
+  test -x "$CLASSIC_NAV_PRO_PROGRAM"
+  args+=(--pro-program "$CLASSIC_NAV_PRO_PROGRAM")
+fi
+uv run --quiet --with pillow python host-tests/classic-navigation/test_runtime.py "${args[@]}"

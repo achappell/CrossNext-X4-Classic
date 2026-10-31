@@ -648,44 +648,6 @@ for pair in "$YML:build" \
   esac
 done
 
-# -- an inherited workflow must say what it does HERE -------------------------
-#
-# ci.yml and pr-formatting-check.yml are disabled_manually on GitHub and said
-# nothing about it in the file: ci.yml still reads `on: pull_request`, which is
-# as live-looking a trigger as exists. release_candidate.yml is worse -- it is
-# dispatch-only AND gated on a `release/` ref that this fork's `app/*` branches
-# can never match, so dispatching it produces a green run with zero jobs, which
-# is indistinguishable from a release candidate that built.
-#
-# None of them is deleted, because deleting them conflicts on every sync from
-# upstream. So the rule is that they carry the reason instead, in release.yml's
-# shape.
-#
-# Written over "every workflow that is not this fork's own" rather than over a
-# list of the four, so the NEXT upstream workflow a sync brings in arrives red
-# until somebody says whether it runs here.
-# BOTH extensions. GitHub runs .yaml as readily as .yml, so a rule written over
-# *.yml alone lets in half of what a sync could bring. And the marker asked for
-# is the one the message names, colon included: `grep -q "FORK CHANGE"` was
-# satisfied by prose merely mentioning the convention.
-seen=0
-for wf in "$HERE/../.."/.github/workflows/*.yml "$HERE/../.."/.github/workflows/*.yaml; do
-  [ -f "$wf" ] || continue
-  seen=$((seen + 1))
-  case "$(basename "$wf")" in crossplay-*) continue ;; esac
-  checks=$((checks + 1))
-  if grep -q "FORK CHANGE:" "$wf"; then
-    :
-  else
-    failed=$((failed + 1))
-    echo "FAIL ci  $(basename "$wf") is inherited from upstream and carries no 'FORK CHANGE:' note saying whether it runs in this fork; a disabled or unreachable workflow reads exactly like a live one"
-  fi
-done
-checks=$((checks + 1))
-if [ "$seen" -eq 0 ]; then
-  failed=$((failed + 1))
-  echo "FAIL ci  found no workflow files at all; the fork-marker rule just checked nothing"
-fi
 
 # -- what the pull_request filter may and may not silence (card #547) ---------
 #

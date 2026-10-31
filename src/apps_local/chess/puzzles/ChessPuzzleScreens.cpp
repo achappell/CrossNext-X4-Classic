@@ -218,9 +218,9 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
       const bool selected =
           screen.frame().buttonSelected(Pick, index, index == last || chesspuzzle::solved(*model.progress, index));
       if (selected)
-        screen.target().fill(r, black);
+        lightui::surface(screen.target(), r, black);
       else
-        screen.target().stroke(r, black, 2);
+        lightui::outline(screen.target(), r, black, 2);
       std::snprintf(work.labels[0], sizeof(work.labels[0]), "%d", local + 1);
       numerals::draw(screen.target(),
                      r.inset(fui::Insets{int16_t(std::max(8, h / 4)), 12, int16_t(std::max(8, h / 4)), 12}),
@@ -269,7 +269,8 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
       caption.align = fui::TextAlign::Center;
       caption.maxLines = 2;
       screen.target().text(fui::makeRect(body.x, body.y + 152, left, 76), completion, caption);
-      pixelui::text(screen.target(), fui::makeRect(body.x, body.y + 236, left, 40), tr(STR_CHESS_WELL_PLAYED),
+      pixelui::text(screen.target(), fui::makeRect(body.x, body.y + 236, left, 40),
+                    model.saveFailed ? tr(STR_CHESS_PUZZLE_SAVE_ERROR) : tr(STR_CHESS_WELL_PLAYED),
                     pixelui::kSmall, fui::Color::Black, fui::TextAlign::Center);
       std::snprintf(work.labels[0], sizeof(work.labels[0]), tr(STR_CHESS_PUZZLE_MOVES), model.session->playerMoves,
                     chesspuzzle::goal(*model.session));
@@ -301,7 +302,8 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
                   model.index - chesspuzzle::kGroupStarts[model.group] + 1);
     pixelui::text(screen.target(), fui::makeRect(body.x, headingY + 44, body.width, 32), work.labels[0],
                   pixelui::kSmall, fui::Color::Black, fui::TextAlign::Center);
-    pixelui::text(screen.target(), fui::makeRect(body.x, headingY + 80, body.width, 32), tr(STR_CHESS_WELL_PLAYED),
+    pixelui::text(screen.target(), fui::makeRect(body.x, headingY + 80, body.width, 32),
+                  model.saveFailed ? tr(STR_CHESS_PUZZLE_SAVE_ERROR) : tr(STR_CHESS_WELL_PLAYED),
                   pixelui::kSmall, fui::Color::Black, fui::TextAlign::Center);
     const int solved = chesspuzzle::solvedCount(*model.progress, model.group),
               count = chesspuzzle::kGroupCounts[model.group];
@@ -347,7 +349,7 @@ void build(toybox::Screen& screen, const Model& model, Work& work) {
   std::snprintf(work.labels[4], sizeof(work.labels[4]), tr(STR_CHESS_PUZZLE_MOVES), session.playerMoves,
                 chesspuzzle::goal(session));
   const auto band = fui::makeRect(info.x, info.y, info.width, 38);
-  screen.target().stroke(band, black, 2);
+  lightui::outline(screen.target(), band, black, 2);
   const int half = band.width / 2;
   if (!wide)
     screen.target().line({int16_t(band.x + half), band.y}, {int16_t(band.x + half), int16_t(band.bottom())}, 2, black);

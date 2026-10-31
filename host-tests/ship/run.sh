@@ -508,12 +508,6 @@ fi
 
 # -- 5a2. the notes go in the SAME commit as the version -------------------
 #
-# The gate checks release-body.md against platformio.ini (host-tests/release,
-# "does not say What is new in <version>"), so a tree with the version bumped
-# and the notes not yet written cannot pass it. ship.sh bumped in one step
-# and wrote notes in a later one, which put exactly that tree in front of the
-# gate every time: the script could never complete. Found on the first live
-# run, and unreachable from --dry-run because the gate does not execute there.
 checks=$((checks + 1))
 if printf '%s' "$CODE" | grep -qE "git add platformio\.ini docs/release-notes\.md docs/release-body\.md" \
    && printf '%s' "$CODE" | grep -qE "release_notes\.py[^\"]*--pr-json"; then

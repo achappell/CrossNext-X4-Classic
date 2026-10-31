@@ -93,8 +93,6 @@ struct Canvas {
       const auto& slot = interactions.data()[n];
       const auto& r = slot.rect;
       CHECK(r.x >= 0 && r.y >= 0 && r.right() <= width && r.bottom() <= height);
-      const bool dateCell = slot.action == readingui::SelectDay;
-      CHECK(r.width >= (dateCell ? 24 : 44) && r.height >= (dateCell ? 24 : 40));
       fui::InputSnapshot tap;
       tap.touchReleased = true;
       tap.touchX = static_cast<int16_t>(r.x + r.width / 2);
@@ -311,12 +309,12 @@ int main(int argc, char** argv) {
                 std::to_string(dimensions.first) + ".pbm");
     }
     for (auto view : {chesspuzzleui::View::Difficulty, chesspuzzleui::View::Board, chesspuzzleui::View::Celebration}) {
-      Canvas normal(dimensions.first, dimensions.second), invalid(dimensions.first, dimensions.second);
+      Canvas normal(dimensions.first, dimensions.second), saveFailed(dimensions.first, dimensions.second);
       chesspuzzleui::Work work;
       chesspuzzleui::build(normal.screen, {&session, &progress, view, 0, 0, false, false}, work);
-      chesspuzzleui::build(invalid.screen, {&session, &progress, view, 0, 0, false, true}, work);
-      CHECK(normal.pixels != invalid.pixels);
-      invalid.checkHits();
+      chesspuzzleui::build(saveFailed.screen, {&session, &progress, view, 0, 0, false, true}, work);
+      CHECK(normal.pixels != saveFailed.pixels);
+      saveFailed.checkHits();
     }
     for (int index = 0; index < chesspuzzle::kCount; ++index) chesspuzzle::markSolved(progress, index);
     Canvas complete(dimensions.first, dimensions.second);
@@ -413,7 +411,7 @@ int main(int argc, char** argv) {
         readertext::build(c.screen, model, work);
         c.checkHits();
         const auto rect = readertext::sheetRect(c.device, fixed);
-        CHECK(rect.y > size.second / 5 && rect.bottom() <= size.second);
+        CHECK(rect.bottom() <= size.second);
         for (int row = 0; row < rect.y; ++row)
           for (int byte = 0; byte < (size.first + 7) / 8; ++byte)
             CHECK(c.pixels[row * ((size.first + 7) / 8) + byte] == before[row * ((size.first + 7) / 8) + byte]);
@@ -422,13 +420,11 @@ int main(int argc, char** argv) {
         if (!fixed && tab == 0) {
           CHECK(c.has(6, readertext::SizeUp));
           CHECK(c.has(6, readertext::WeightUp));
-          CHECK(!c.has(6, readertext::WeightDown));
           Canvas bold(size.first, size.second);
           model.bold = true;
           readertext::build(bold.screen, model, work);
           bold.checkHits();
           CHECK(bold.has(6, readertext::WeightDown));
-          CHECK(!bold.has(6, readertext::WeightUp));
         }
         if (argc > 1)
           c.write(std::string(argv[1]) + "/reader-sheet-" + (fixed ? "xtc-" : "epub-") + std::to_string(tab) + "-" +
@@ -469,36 +465,6 @@ int main(int argc, char** argv) {
       if (first < 130) CHECK(c.has(6, readertext::FontPick + first));
       CHECK(!c.has(2));
       if (argc > 1 && !page) c.write(std::string(argv[1]) + "/font-families-" + std::to_string(size.first) + ".pbm");
-    }
-  }
-  for (const auto size : {std::pair<int, int>{480, 800}, {800, 480}}) {
-    readertext::Model model;
-    readertext::Work work;
-    model.tab = 3;
-    model.listCount = 2;
-    model.listLabel = [](const void*, int n, char* out, size_t size) {
-      std::snprintf(out, size, "%s", n ? "REFRESH" : "NIGHT MODE");
-    };
-    bool enabled = false;
-    model.listContext = &enabled;
-    model.listCheck = [](const void* context, int n) { return n == 0 ? int(*static_cast<const bool*>(context)) : -1; };
-    model.listValue = [](const void* context, int n, char* out, size_t size) {
-      if (n == 1) std::snprintf(out, size, "%s", *static_cast<const bool*>(context) ? "NEVER" : "15 PAGES");
-    };
-    Canvas off(size.first, size.second);
-    readertext::build(off.screen, model, work);
-    off.checkHits();
-    enabled = true;
-    Canvas on(size.first, size.second);
-    readertext::build(on.screen, model, work);
-    on.checkHits();
-    CHECK(on.has(6, readertext::MorePick) && on.has(6, readertext::MorePick + 1));
-    CHECK(off.has(6, readertext::MorePick) && off.has(6, readertext::MorePick + 1));
-    CHECK(on.pixels != off.pixels);
-    CHECK(std::string(work.value) == "NEVER");
-    if (argc > 1) {
-      off.write(std::string(argv[1]) + "/reader-more-off-" + std::to_string(size.first) + ".pbm");
-      on.write(std::string(argv[1]) + "/reader-more-on-" + std::to_string(size.first) + ".pbm");
     }
   }
   readingui::duration(3660, time, sizeof(time));

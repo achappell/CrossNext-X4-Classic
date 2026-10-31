@@ -326,14 +326,6 @@ if [ -n "$NEXT" ]; then
     if [ "$HAVE_VER" != "$NEXT" ]; then
       run "python3 -c \"import pathlib,re; p=pathlib.Path('platformio.ini'); t=p.read_text(); p.write_text(re.sub(r'(?m)^(\\[crossplay\\](?:[^\\[]*?\\n)version *= *).*$', r'\\g<1>$NEXT', t, count=1))\""
     fi
-    # AND THE NOTES, IN THE SAME COMMIT, because the gate checks them against
-    # the version. host-tests/release refuses a tree whose release-body.md
-    # names a different version than platformio.ini -- rightly, since that is
-    # a release about to publish the previous one's text. Bumping the version
-    # here and writing the notes only after the squash left exactly that
-    # tree in front of the gate, so ship.sh could never pass its own gate.
-    # Caught on the first live run; no dry run reaches it, because the gate
-    # does not execute in dry mode.
     #
     # The pull request is not merged yet, so its data is handed over rather
     # than looked up: release_notes.py maps by mergeCommit.oid and there is
@@ -536,9 +528,8 @@ fi
 # rewrote both notes files for a release that would never exist, pushed
 # that to xteink, and only then died on the tag guard. After the squash,
 # which is not undoable by re-running. The tag lands on this
-# commit, so the tagged tree's CODE is byte-identical to what was built and
-# the tag carries the notes it publishes -- which is what host-tests/release
-# wants when it compares a release against the previous tag.
+# commit, so the tagged tree's CODE is byte-identical to what was built, and
+# the tag carries the notes it publishes.
 step "release notes"
 
 run "python3 scripts_local/release_notes.py --repo ma-r-s/crossplay --version '$NEXT' --write"

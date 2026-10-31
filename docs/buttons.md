@@ -12,6 +12,20 @@ coordinate controls.
 
 - On Classic Home, previous/next includes the displayed recent book/Continue
   reading target; Confirm opens it. Back retains the existing Resume shortcut.
+- Carousel 2 includes book focus and the Settings gear in the same key ring.
+  Bookshelf shows its drawer while menu rows are focused, closes it for visible
+  book/page focus, and includes available Previous/Next page controls. Back closes
+  the drawer onto the current book before the existing Resume shortcut applies.
+- In Library, Confirm on the tab strip switches Recent/Filter; held Confirm keeps
+  reverse-order behavior. Physical category/value navigation shows its selected
+  row, and Confirm opens the selected category, value or matching book.
+- After a chapter jump in EPUB or XTC/XTCH, the temporary Return control accepts
+  a short Back on Classic. Turning a page removes it. Long Back and Back when
+  no return is active retain their existing reader navigation; open overlays
+  continue to own Back before the reading page.
+- In Reading Statistics Today, Confirm sets an unset daily goal or opens its
+  calendar when configured. In that calendar, Confirm changes the target;
+  existing month navigation and Back remain available.
 - In Apps/Games folders, bottom Left/Right move up/down the whole list, including
   across pages. At the list ends they reach the chooser and page controls;
   Confirm activates the visible row or control. Side short/held navigation stays

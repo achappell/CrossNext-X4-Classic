@@ -2,6 +2,7 @@
 
 #include <Bitmap.h>
 #include <BoardConfig.h>
+#include <ContentVisibility.h>
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -20,6 +21,7 @@
 #include <vector>
 
 #include "../../apps_local/Shelf.h"  // fork-local seam
+#include "../../apps_local/home/HomeShelfOrder.h"
 #include "../../apps_local/reading/ReadingStatsActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -33,7 +35,8 @@
 
 int HomeActivity::getMenuItemCount() const {
   // The persisted registry defines the same rows for drawing and activation.
-  int count = homemenu::count(hasLibrarySlot());
+  int count =
+      SETTINGS.homeLayout == CrossPointSettings::HOME_BOOX ? homeui::kPiccoActions : homemenu::count(hasLibrarySlot());
   if (!recentBooks.empty()) {
     count += displayBookCount();
   }
@@ -68,6 +71,80 @@ void HomeActivity::loadRecentBooks(int maxBooks) {
     }
 
     recentBooks.push_back(book);
+  }
+}
+
+void HomeActivity::loadShelfPage() {
+  const int pageSize = renderer.getScreenWidth() > renderer.getScreenHeight() ? 3 : 6;
+  shelfPageSize = pageSize;
+  const int requestedPages = std::clamp(int(SETTINGS.homeRecentBookCount), 1, 10);
+  const int shelfLimit = requestedPages * pageSize;
+  struct Reader {
+    library::LibraryIndexFile index;
+    library::ClixRecord record;
+    homeui::ShelfOrder order;
+  };
+  auto reader = makeUniqueNoThrow<Reader>();
+  if (!reader) {
+    LOG_ERR("HOME", "OOM: shelf index reader");
+    return;
+  }
+  bool opened = reader->index.open(library::libraryIndexPath());
+  bool rebuild = !opened || library::isLibraryIndexDirty() ||
+                 reader->index.header().metadataEnabled != (SETTINGS.libraryUseMetadata != 0) ||
+                 reader->index.header().reserved[0] != content::VISIBILITY_VERSION;
+  static bool cardChecked = false;
+  if (opened && !rebuild && !cardChecked) {
+    const auto result = library::checkLibraryCard(reader->index.header());
+    rebuild = result == library::CardCheck::Changed;
+    cardChecked = result == library::CardCheck::Unchanged;
+  }
+  if (rebuild) {
+    reader->index.close();
+    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    library::BuildStats stats;
+    if (library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0)) cardChecked = true;
+    opened = reader->index.open(library::libraryIndexPath());
+  }
+  const auto& recents = RECENT_BOOKS.getBooks();
+  for (size_t n = 0; n < recents.size() && reader->order.count < shelfLimit; ++n) {
+    const auto& book = recents[n];
+    if (!RecentBooksStore::isMissing(book))
+      reader->order.add(homeui::ShelfSource::Recent, uint16_t(n),
+                        library::clixPathHash(book.path.c_str(), book.path.size()));
+  }
+  if (opened) {
+    for (uint16_t row = 0; row < reader->index.bookCount() && reader->order.count < shelfLimit; ++row) {
+      const auto ordinal = reader->index.ordinalForRow(library::SortOrder::DateAddedDesc, row);
+      uint64_t hash = 0;
+      if (!reader->index.readRecord(ordinal, reader->record) || !reader->index.readPathHash(reader->record, hash))
+        break;
+      reader->order.add(homeui::ShelfSource::Index, ordinal, hash);
+    }
+  }
+  const int count = reader->order.count;
+  shelfPages = std::clamp((count + pageSize - 1) / pageSize, 1, requestedPages);
+  shelfPage = std::clamp(shelfPage, 0, shelfPages - 1);
+  if (recentBooks.size() > 1) recentBooks.resize(1);
+  recentBooks.reserve(CoverGridHomeUi::MAX_BOOKS);
+  for (int row = shelfPage * pageSize; row < std::min(count, (shelfPage + 1) * pageSize); ++row) {
+    const auto& choice = reader->order.entries[row];
+    RecentBook book;
+    switch (choice.source) {
+      case homeui::ShelfSource::Recent:
+        book = recents[choice.index];
+        break;
+      case homeui::ShelfSource::Index:
+        if (!reader->index.readRecord(choice.index, reader->record) ||
+            !reader->index.readPath(reader->record, book.path))
+          continue;
+        if (!reader->index.readTitle(reader->record, book.title)) reader->index.readName(reader->record, book.title);
+        reader->index.readAuthor(reader->record, book.author);
+        if (reader->index.ioFailed()) continue;
+        break;
+    }
+    if (recentBooks.empty()) recentBooks.push_back(book);
+    recentBooks.push_back(std::move(book));
   }
 }
 
@@ -113,7 +190,7 @@ void HomeActivity::fillCoverGridFromLibrary() {
 
 void HomeActivity::resolveGridCoverPaths() {
   for (auto& book : recentBooks) {
-    if (!book.coverBmpPath.empty()) continue;
+    if (!book.coverBmpPath.empty() && !FsHelpers::hasXtcExtension(book.path)) continue;
     // Constructors only derive cache paths; no metadata parsing or image generation.
     // Keep these large objects off the task stack and release each before the next book.
     if (FsHelpers::hasReflowableBookExtension(book.path)) {
@@ -124,7 +201,7 @@ void HomeActivity::resolveGridCoverPaths() {
       }
       book.coverBmpPath = epub->getThumbBmpPath();
     } else if (FsHelpers::hasXtcExtension(book.path)) {
-      auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint");
+      auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint", SETTINGS.xtcCoverRotation != 0);
       if (!xtc) {
         LOG_ERR("HOME", "OOM: XTC thumbnail path");
         continue;
@@ -157,7 +234,7 @@ void HomeActivity::loadGridCover(RecentBook& book, int height, bool& showingLoad
       return;
     }
   } else if (FsHelpers::hasXtcExtension(book.path)) {
-    auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint");
+    auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint", SETTINGS.xtcCoverRotation != 0);
     if (!xtc) {
       LOG_ERR("HOME", "OOM: cover XTC");
       return;
@@ -209,18 +286,30 @@ void HomeActivity::onEnter() {
   hasOpdsServers = OPDS_STORE.hasServers();
   hasPlugins = anyPluginInstalled();
 
-  if (SETTINGS.homeLayout == CrossPointSettings::HOME_FRAMED && UITheme::getInstance().hasCoverGridHome()) {
+  if ((SETTINGS.homeLayout == CrossPointSettings::HOME_FRAMED ||
+       SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE) &&
+      UITheme::getInstance().hasCoverGridHome()) {
     // Screen-lifetime interaction tables and component properties exceed the stack budget.
     coverGridUi = makeUniqueNoThrow<CoverGridHomeUi>(renderer);
     if (!coverGridUi) LOG_ERR("HOME", "OOM: cover grid UI; using standard home");
   }
-  loadRecentBooks(coverGridUi ? CoverGridHomeUi::MAX_BOOKS : 1);
-  if (!coverGridUi) dashboard.begin();
+  loadRecentBooks(coverGridUi && SETTINGS.homeLayout != CrossPointSettings::HOME_LICORICE ? CoverGridHomeUi::MAX_BOOKS
+                                                                                          : 1);
+  dashboard.begin();
   hasContinueReading = !recentBooks.empty();
   if (coverGridUi) {
-    fillCoverGridFromLibrary();
+    if (SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE)
+      loadShelfPage();
+    else
+      fillCoverGridFromLibrary();
     resolveGridCoverPaths();
     coverGridUi->begin(recentBooks, hasLibrarySlot(), hasContinueReading, hasPlugins);
+    if (SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE) {
+      loadRecentCovers(coverGridUi->thumbHeightFor());
+      coverGridUi->refreshCoverPaths();
+      coverGridUi->takeThumbHeightChanged();
+    }
+    coverGridUi->setPage(shelfPage, shelfPages);
   }
 
   const auto base = displayBookCount();
@@ -237,6 +326,8 @@ void HomeActivity::onEnter() {
           base + menuItemToIndex(shelfRow == 0 ? HomeMenuItem::GAMES : HomeMenuItem::APPS, hasLibrarySlot());
     }
   }
+  if (BoardConfig::isX4Classic() && coverGridUi && SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE)
+    coverGridUi->showDrawer();
 
   // fork-local seam: boot straight into a named app when the environment asks
   // for one (the site's installer preview, CROSSPLAY_AUTOSTART=chess ./bin/sim).
@@ -294,8 +385,11 @@ void HomeActivity::freeCoverBuffer() {
 }
 
 void HomeActivity::loop() {
-  const int options = homemenu::count(hasLibrarySlot());
+  const int menuOptions =
+      SETTINGS.homeLayout == CrossPointSettings::HOME_BOOX ? homeui::kPiccoActions : homemenu::count(hasLibrarySlot());
   const bool includeBooks = BoardConfig::isX4Classic();
+  const bool shelfPaging = includeBooks && coverGridUi && SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE;
+  const int options = menuOptions + (shelfPaging ? int(shelfPage > 0) + int(shelfPage + 1 < shelfPages) : 0);
   const int navigationCount = options + (includeBooks ? displayBookCount() : 0);
   const auto move = [this, navigationCount](int direction) {
     if (!menuInput.move(direction, navigationCount)) LOG_ERR("HOME", "Menu input queue full");
@@ -310,20 +404,50 @@ void HomeActivity::loop() {
 
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
+  if (coverGridUi && SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE &&
+      shelfPageSize != (renderer.getScreenWidth() > renderer.getScreenHeight() ? 3 : 6)) {
+    loadShelfPage();
+    resolveGridCoverPaths();
+    coverGridUi->begin(recentBooks, hasLibrarySlot(), hasContinueReading, hasPlugins);
+    coverGridUi->setPage(shelfPage, shelfPages);
+    if (includeBooks) {
+      selectorIndex = displayBookCount();
+      coverGridUi->showDrawer();
+    }
+    recentsLoaded = false;
+    requestUpdate();
+    return;
+  }
   const int menuCount = getMenuItemCount();
-  if (!coverGridUi && dashboard.pollDate()) {
+  if (dashboard.pollDate()) {
     dashboardDirty = true;
     requestUpdate();
   }
 
-  auto activateSelection = [this] {
+  const auto changeShelfPage = [this](int direction) {
+    if (!direction || shelfPage + direction < 0 || shelfPage + direction >= shelfPages) return false;
+    shelfPage += direction;
+    loadShelfPage();
+    resolveGridCoverPaths();
+    coverGridUi->begin(recentBooks, hasLibrarySlot(), hasContinueReading, hasPlugins);
+    coverGridUi->setPage(shelfPage, shelfPages);
+    if (BoardConfig::isX4Classic()) selectorIndex = recentBooks.size() > 1 ? 1 : 0;
+    recentsLoaded = false;
+    requestUpdate();
+    return true;
+  };
+  auto activateSelection = [this, menuOptions, shelfPaging, &changeShelfPage] {
     if (selectorIndex < displayBookCount()) {
       onSelectBook(recentBooks[selectorIndex].path);
       return;
     }
     const int menuIndex = selectorIndex - displayBookCount();
+    if (shelfPaging && menuIndex >= menuOptions) {
+      changeShelfPage(shelfPage > 0 && menuIndex == menuOptions ? -1 : 1);
+      return;
+    }
     const auto id = homemenu::at(homemenu::config(), menuIndex, hasLibrarySlot());
-    if (homemenu::isShortcut(id)) {
+    if (SETTINGS.homeLayout != CrossPointSettings::HOME_BOOX && homemenu::isShortcut(id)) {
       homemenu::launchShortcut(id, renderer, mappedInput);
       return;
     }
@@ -370,12 +494,26 @@ void HomeActivity::loop() {
       case homeui::MenuInput::Kind::Move:
         selectorIndex = homeui::MenuInput::selection(selectorIndex, displayBookCount(), options, event.steps,
                                                      includeBooks);
+        if (coverGridUi && SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE) {
+          if (selectorIndex >= displayBookCount() && selectorIndex < displayBookCount() + menuOptions)
+            coverGridUi->showDrawer();
+          else
+            coverGridUi->closeDrawer();
+        }
         break;
       case homeui::MenuInput::Kind::Confirm:
         menuInput.clear();
         activateSelection();
         return;
       case homeui::MenuInput::Kind::Resume:
+        if (coverGridUi && SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE && coverGridUi->closeDrawer()) {
+          if (includeBooks) {
+            selectorIndex = 0;
+            if (recentBooks.empty()) coverGridUi->showDrawer();
+          }
+          requestUpdate();
+          return;
+        }
         if (hasContinueReading && !recentBooks.empty()) {
           menuInput.clear();
           onSelectBook(recentBooks[0].path);
@@ -401,6 +539,18 @@ void HomeActivity::loop() {
 
   if (coverGridUi) {
     const int touched = coverGridUi->selectedAction(mappedInput);
+    if (SETTINGS.homeLayout == CrossPointSettings::HOME_LICORICE) {
+      const int direction = swipe == MappedInputManager::SwipeDir::Left || touched == CoverGridHomeUi::PAGE_NEXT ? 1
+                            : swipe == MappedInputManager::SwipeDir::Right || touched == CoverGridHomeUi::PAGE_PREVIOUS
+                                ? -1
+                                : 0;
+      if (changeShelfPage(direction)) return;
+      if (touched == CoverGridHomeUi::MENU_TOGGLE) {
+        requestUpdate();
+        return;
+      }
+    }
+
     if (touched >= 0 && touched < menuCount) {
       selectorIndex = touched;
       activateSelection();
@@ -414,6 +564,12 @@ void HomeActivity::loop() {
   const int touched = carouselNext       ? homeui::kNextBook
                       : carouselPrevious ? homeui::kPreviousBook
                                          : dashboard.selectedAction(mappedInput);
+  const int picco = homeui::piccoIndex(static_cast<homeui::QuickAction>(touched));
+  if (SETTINGS.homeLayout == CrossPointSettings::HOME_BOOX && picco >= 0) {
+    selectorIndex = displayBookCount() + picco;
+    activateSelection();
+    return;
+  }
   if (touched == homeui::kPreviousBook || touched == homeui::kNextBook) {
     const int next =
         recentBookCount > 1

@@ -79,11 +79,6 @@ doc. If you are AUTHORING rather than reconciling, you are in the wrong tree.
 5. Tag `v<version>` and push. The workflow's first step refuses a tag that does
    not match the version in `platformio.ini`.
 
-`host-tests/release` enforces 3, 4 and 5 -- including that the notes are not
-byte-identical to the previous tag's below the heading, because renaming the
-heading and leaving the bullets is the same failure with one line of editing.
-It stays quiet when no bump is pending, so a green run before you start is not
-evidence the notes are written.
 
 This needs saying because "it is only integration" is an easy thing to tell
 yourself. On 2026-08-14 it produced eight direct commits on `xteink` -- a

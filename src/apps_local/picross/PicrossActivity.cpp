@@ -304,7 +304,9 @@ void PicrossActivity::loop() {
         return;
       }
       if (view == View::Help) {
-        helpPage = std::clamp(helpPage + direction, 0, 3);
+        const int next = std::clamp(helpPage + direction, 0, 3);
+        if (next == helpPage) return;
+        helpPage = next;
         requestUpdate();
         return;
       }
@@ -319,7 +321,9 @@ void PicrossActivity::loop() {
   }
   if (interactionsReady && view == View::Help) {
     if (const int direction = sidebuttons::shortStep(mappedInput)) {
-      helpPage = std::clamp(helpPage + direction, 0, 3);
+      const int next = std::clamp(helpPage + direction, 0, 3);
+      if (next == helpPage) return;
+      helpPage = next;
       requestUpdate();
       return;
     }
@@ -345,8 +349,9 @@ void PicrossActivity::loop() {
   const bool touch = mappedInput.wasScreenTapped(touchX, touchY);
   // Holding always marks; a short tap uses the tool selected on screen.
   const int inputMode = ui::tapMode(mode, touch && mappedInput.tapWasHeldLong());
-  const fui::ActionEvent action =
-      sidebuttons::route(interactions, input, mappedInput, *this, !(view == View::Sizes || view == View::Picker));
+  const fui::ActionEvent action = touch ? interactions.route(input)
+                                        : sidebuttons::route(interactions, input, mappedInput, *this,
+                                                             !(view == View::Sizes || view == View::Picker));
   switch (action.action) {
     case ui::ActionBoard:
       if (view == View::Board) routeBoardTap(tapX, tapY, inputMode);

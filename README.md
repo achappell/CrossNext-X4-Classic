@@ -11,11 +11,12 @@ a break with a game, all on the same e-ink device.
 
 [![Support me on Ko-fi](site/assets/support-ko-fi.svg)](https://ko-fi.com/manuelx900)
 
-Choose a framed Home screen or a cover carousel, arrange your own app and game
+Choose Framed, Carousel, Carousel 2 or Bookshelf for Home, arrange your own app and game
 shortcuts, and adjust the fonts, reading controls and sleep wallpapers to suit you.
-The published X4 Pro path remains separate from the **X4 Classic local build**
-(ESP32-S3, 16 MB flash, 8 MB PSRAM). Classic software builds and a key-only
-simulator are available; physical-device support and recovery are not yet validated.
+This fork carries upstream **CrossNext 1.4.0** onto **X4 Classic**
+(ESP32-S3, 16 MB flash, 8 MB PSRAM), preserving its button-only port and navigation.
+Classic downloads use this fork's [releases](https://github.com/achappell/CrossNext-X4-Classic/releases);
+upstream X4 Pro binaries are not Classic firmware. Physical-device support and recovery remain unvalidated.
 
 CrossNext is based on [CrossPlay 1.14.2](https://github.com/ma-r-s/crossplay)
 and [CrossPoint 1.6.5](https://github.com/crosspoint-reader/crosspoint-reader),
@@ -47,11 +48,11 @@ egg, name your pet and watch it grow as you read.
 
 Install **CrossNext-Resources.zip** on the microSD to use PET.
 See [PET's guide](docs/apps/pet.md) and
-[what's new in v1.3.1](docs/releases/CrossNext-v1.3.1.md).
+[what's new in v1.4.0](docs/releases/CrossNext-v1.4.0.md).
 
-The interface starts with Noto Sans for new settings. Choose Noto Sans, Jersey 25,
-Ubuntu or Noto Serif globally, by section, or for an individual app or game.
-Reading fonts are configured separately. Existing font preferences are preserved.
+The interface starts with Noto Sans. Choose Noto Sans, Ubuntu or Noto Serif
+globally, by section, or for an individual app or game. Reading fonts are
+configured separately. Saved Jersey 25 choices migrate to Noto Sans.
 
 ## Read, study and play
 
@@ -116,8 +117,8 @@ Choose the package matching the device:
 
 | Model | ZIP | Application / SD update | Factory / USB installation |
 | --- | --- | --- | --- |
-| X4 Pro | `CrossNext-X4PRO-Firmware-v1.3.1.zip` | `CrossNext-X4PRO-Firmware-v1.3.1.bin` | `CrossNext-X4PRO-Firmware-v1.3.1-factory.bin` |
-| X4 Classic, local only | `CrossNext-X4C-Firmware-v1.3.1.zip` | `CrossNext-X4C-Firmware-v1.3.1.bin` | `CrossNext-X4C-Firmware-v1.3.1-factory.bin` |
+| X4 Pro (upstream) | `CrossNext-X4PRO-Firmware-v1.4.0.zip` | `CrossNext-X4PRO-Firmware-v1.4.0.bin` | `CrossNext-X4PRO-Firmware-v1.4.0-factory.bin` |
+| X4 Classic (this fork) | `CrossNext-X4C-Firmware-v1.4.0.zip` | `CrossNext-X4C-Firmware-v1.4.0.bin` | `CrossNext-X4C-Firmware-v1.4.0-factory.bin` |
 
 Generated ZIPs are in `dist/`, and raw images in `dist/CrossNext/`.
 Each firmware ZIP includes SHA-256 checksums, model-specific images and notes.
@@ -126,7 +127,7 @@ factory images contain the bootloader and partitions and belong at `0x0` over US
 Read [the installation guide](docs/install.md) and back up the microSD first.
 Classic uses a compatible microSD updater for the application image. Its factory
 USB route is gated on separate device identity, USB-lock, backup and recovery
-checks; no Classic flash or public release is authorized by a successful build.
+checks; a successful build does not establish physical hardware validation.
 The older ESP32-C3 X4/X3 and PaperMono are not these S3 targets.
 
 **X4 Pro only:** use **Settings → Device → Check for Updates** to get updates from
@@ -165,14 +166,15 @@ The original [CrossPlay demo](https://crossplay.ma-r-s.com) is maintained upstre
 ## Develop and verify
 
 Use `x4pro` / `simulator_x4_pro` for Pro, or `x4c` /
-`simulator_x4_classic` for Classic; `gh_release_x4c` produces the local Classic
-package inputs. The upstream `default` environment targets a different chip.
+`simulator_x4_classic` for Classic; `gh_release_x4c` produces ordinary Classic
+release package inputs. The upstream `default` environment targets a different chip.
 In a configured checkout, run `./scripts_local/check.sh` from your own worktree.
 Use the repository's `./bin/clang-format-fix -g` wrapper for changed C/C++ files.
 Read the [contributor guide](docs/contributing/getting-started.md) and
 [local script documentation](scripts_local/README.md) before changing firmware.
-Inherited CrossPlay automation is restricted to its original repository; CrossNext
-releases are published manually.
+Inherited CrossPlay automation remains restricted to its original repository.
+The fork's **Release X4 Classic** workflow builds a reviewed Classic tag, checks
+its identity and packages the application/factory images; see [release steps](docs/install.md#publishing-a-classic-release).
 
 Useful feature details: [Flashcards](docs/apps/flashcards-ui.md),
 [Words](docs/apps/words.md), [Pomodoro](docs/pomodoro.md),
@@ -197,7 +199,7 @@ CrossPlay supplies the app/game shelf and implementations; CrossPoint supplies
 the e-reader foundation. [CrossNext changes](docs/crossnext-changes.md) describes
 this fork's adaptations without claiming those inherited projects as new work.
 
-[What’s new in v1.3.1](docs/releases/CrossNext-v1.3.1.md)
+[What’s new in v1.4.0](docs/releases/CrossNext-v1.4.0.md)
 
 ## Support CrossNext
 

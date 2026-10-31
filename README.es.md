@@ -4,15 +4,15 @@
 
 CrossNext reúne lectura, herramientas de estudio y juegos en el **Xteink X4 Pro**.
 Lee un libro, guarda vocabulario, repasa flashcards, registra tu progreso y juega
-sin cambiar de dispositivo. Elige entre Inicio con marco o carrusel y personaliza
-sus accesos, los controles de lectura y tus fondos de pantalla.
+sin cambiar de dispositivo. Elige Marco, Carrusel, Carrusel 2 o Estantería para
+Inicio y personaliza sus accesos, los controles de lectura y tus fondos de pantalla.
 
 [![Apoyar en Ko-fi](site/assets/support-ko-fi.svg)](https://ko-fi.com/manuelx900)
 
-La vía publicada para **X4 Pro** sigue separada de la compilación local para
-**X4 Classic** (ESP32-S3, 16 MB de flash, 8 MB de PSRAM). Classic cuenta con
-compilación y simulador por botones; no se ha validado el dispositivo físico
-ni un procedimiento de recuperación.
+Este fork adapta **CrossNext 1.4.0** para **X4 Classic**
+(ESP32-S3, 16 MB de flash, 8 MB de PSRAM), conservando su navegación por botones.
+Sus descargas están en las [versiones de este fork](https://github.com/achappell/CrossNext-X4-Classic/releases),
+no en los binarios X4 Pro de upstream. No se ha validado el dispositivo físico ni la recuperación.
 CrossNext parte de **CrossPlay 1.14.2**, con base **CrossPoint 1.6.5**.
 Referencias adicionales: [CrossInk](https://github.com/uxjulia/CrossInk),
 [CrossDiTo](https://github.com/dito94/CrossDiTo) y
@@ -48,12 +48,12 @@ Elige un huevo, ponle nombre y acompáñalo mientras crece con tus lecturas.
 
 Instala **CrossNext-Resources.zip** en la microSD para usar PET.
 Consulta [la guía de PET](docs/apps/pet.md) y
-[las novedades de v1.3.1](docs/releases/CrossNext-v1.3.1.md).
+[las novedades de v1.4.0](docs/releases/CrossNext-v1.4.0.md).
 
 La interfaz utiliza Noto Sans con los ajustes nuevos. Puedes elegir Noto Sans,
-Jersey 25, Ubuntu o Noto Serif para toda la interfaz, por sección o para una app
-o juego concreto. La letra de lectura se configura por separado. Se conservan
-las preferencias de letra guardadas.
+Ubuntu o Noto Serif para toda la interfaz, por sección o para una app o juego.
+La letra de lectura se configura por separado. Las preferencias de Jersey 25
+pasan a Noto Sans.
 
 ## Qué incluye
 
@@ -107,13 +107,13 @@ La sincronización opcional con **CrossPoint Sync** reúne el historial de tu cu
 
 ## Archivos para instalar
 
-Los paquetes locales por modelo contienen las imágenes y sus sumas SHA-256:
+Los paquetes por modelo contienen las imágenes y sus sumas SHA-256:
 
 | Archivo | Uso |
 | --- | --- |
-| `CrossNext-X4PRO-Firmware-v1.3.1.bin` | Aplicación para X4 Pro; actualización compatible/OTA o dirección `0x10000`. |
-| `CrossNext-X4PRO-Firmware-v1.3.1-factory.bin` | Imagen completa para instalación/recuperación del X4 Pro, en `0x0`. |
-| `CrossNext-X4C-Firmware-v1.3.1.zip` | Paquete local de Classic: aplicación `CrossNext-X4C-Firmware-v1.3.1.bin` y fábrica `CrossNext-X4C-Firmware-v1.3.1-factory.bin`, con sumas SHA-256. |
+| `CrossNext-X4PRO-Firmware-v1.4.0.bin` | Aplicación de upstream para X4 Pro; actualización compatible/OTA o dirección `0x10000`. |
+| `CrossNext-X4PRO-Firmware-v1.4.0-factory.bin` | Imagen completa de upstream para instalación/recuperación del X4 Pro, en `0x0`. |
+| `CrossNext-X4C-Firmware-v1.4.0.zip` | Paquete Classic de este fork: aplicación `CrossNext-X4C-Firmware-v1.4.0.bin` y fábrica `CrossNext-X4C-Firmware-v1.4.0-factory.bin`, con sumas SHA-256. |
 
 Usa el paquete que corresponda al modelo y conserva una copia de la microSD antes
 de actualizar. Los antiguos X4/X3 con ESP32-C3 usan otro chip. Consulta
@@ -149,7 +149,7 @@ dispositivo. Consulta [el contenido de demostración](docs/simulator-showcase.md
 ## Compilar y contribuir
 
 Selecciona `x4pro` / `gh_release_x4pro` para Pro, o `x4c` / `gh_release_x4c`
-para Classic local. Los simuladores nativos son `simulator_x4_pro` y
+para Classic. Los simuladores nativos son `simulator_x4_pro` y
 `simulator_x4_classic`; Classic no tiene entrada táctil, luz frontal ni tecla Home.
 Con `CROSSPOINT_SIM_DEVICE=x4c`, `scripts_local/sim-shot.sh` solo acepta
 Atrás, Confirmar, Izquierda, Derecha, Arriba, Abajo y Encendido.
@@ -157,12 +157,13 @@ Los demás entornos heredados, incluido `sticky`, quedan fuera de esta entrega.
 No uses `default` para estos dispositivos S3.
 En el entorno de desarrollo configurado, ejecuta `./scripts_local/check.sh`
 desde tu propio árbol de trabajo. En Windows consulta la guía del simulador.
-Las automatizaciones heredadas de CrossPlay están limitadas a su repositorio original;
-las versiones de CrossNext se publican manualmente.
+Las automatizaciones heredadas de CrossPlay siguen limitadas a su repositorio.
+**Release X4 Classic** compila la etiqueta revisada, comprueba su identidad y
+publica los paquetes; consulta [los pasos de publicación](docs/install.md#publishing-a-classic-release).
 Las compilaciones y pruebas del simulador no sustituyen las pruebas físicas de
 orientación, entrada, memoria y persistencia antes de publicar una versión.
 
-La validación final del 2026-10-30, después de las correcciones de revisión,
+Como registro histórico de 1.3.1, la validación del 2026-10-30
 cubre las 29 filas activas mediante teclas y estados reales de producción.
 Pasan las 32 suites nativas afectadas, Classic dispositivo/distribución local y
 los simuladores Classic/Pro. El ZIP se verifica contra los archivos actuales,
@@ -180,7 +181,7 @@ consulta `THIRD-PARTY-NOTICES.txt`, `SOURCES.json` y `licenses/` en el paquete d
 microSD. Las portadas, libros, diccionarios y fuentes no cambian de licencia por
 estar incluidos en CrossNext.
 
-[Novedades de v1.3.1](docs/releases/CrossNext-v1.3.1.md)
+[Novedades de v1.4.0](docs/releases/CrossNext-v1.4.0.md)
 
 ## Apoya CrossNext
 

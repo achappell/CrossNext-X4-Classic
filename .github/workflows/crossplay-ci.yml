@@ -86,10 +86,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          # Tags, or host-tests/release cannot compare this release's notes
-          # against what the previous tag published -- it SKIPS instead, which
-          # is exactly the check silently not running in the only place that
-          # would have caught v1.6.2 shipping v1.6.1's text.
           fetch-depth: 0
           fetch-tags: true
 
@@ -200,6 +196,7 @@ jobs:
         run: |
           # Reuse this invocation's Classic build; do not trigger checksum cleanup here.
           export CLASSIC_NAV_PROGRAM="$PWD/.pio/build/simulator_x4_classic/program"
+          export CLASSIC_NAV_PRO_PROGRAM="$PWD/.pio/build/simulator_x4_pro/program"
           for suite in host-tests/*/run.sh; do
             # relwatch has its own job. It runs a real postgres in docker, and
             # sharing a runner with a 20-minute cross-compile starved it: the

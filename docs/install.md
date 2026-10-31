@@ -1,13 +1,13 @@
 # Installing CrossNext
 
-The X4 Pro release path and the X4 Classic local software-build path are separate.
-Both select ESP32-S3 profiles; other inherited board environments remain outside
-these checks. Classic has not been flashed or physically/recovery validated.
+The upstream X4 Pro release and this fork's X4 Classic release are separate.
+Both use ESP32-S3, not the older ESP32-C3 X4/X3. Classic software artifacts
+do not establish physical-device or recovery validation.
 
 | Model | Package | Application image | Factory image |
 | --- | --- | --- | --- |
-| X4 Pro | `CrossNext-X4PRO-Firmware-v1.3.1.zip` | `CrossNext-X4PRO-Firmware-v1.3.1.bin` | `CrossNext-X4PRO-Firmware-v1.3.1-factory.bin` |
-| X4 Classic, local only | `CrossNext-X4C-Firmware-v1.3.1.zip` | `CrossNext-X4C-Firmware-v1.3.1.bin` | `CrossNext-X4C-Firmware-v1.3.1-factory.bin` |
+| X4 Pro (upstream) | `CrossNext-X4PRO-Firmware-v1.4.0.zip` | `CrossNext-X4PRO-Firmware-v1.4.0.bin` | `CrossNext-X4PRO-Firmware-v1.4.0-factory.bin` |
+| X4 Classic (this fork) | `CrossNext-X4C-Firmware-v1.4.0.zip` | `CrossNext-X4C-Firmware-v1.4.0.bin` | `CrossNext-X4C-Firmware-v1.4.0-factory.bin` |
 
 Packages are generated in `dist/`; raw images are in `dist/CrossNext/`.
 Check the package's `SHA256SUMS.txt` before installation. Back up the microSD.
@@ -17,32 +17,50 @@ An existing settings file retains its saved language.
 ## X4 Classic gate and current-build producers
 
 `pio run -e x4c` builds development firmware; `pio run -e gh_release_x4c`
-builds the local release candidate without the development serial input bridge.
+builds the ordinary release without the development serial input bridge.
 `python3 tools_local/package_crossnext.py --device x4c` packages the release
 environment's `.pio/build/gh_release_x4c/firmware.bin` application and
 `firmware.factory.bin` factory output, with manifest, SHA-256 checksums and notes.
 The factory image is the actual pioarduino merge of bootloader, generated
 partitions, boot-app data and application, not a renamed application image.
 
-The tagged application fits the **generated** partition layout. The partition
-table installed on a reader is unknown: the SD updater's runtime slot-size
-rejection remains required. A present wrong-board tag rejects; historical
-untagged-image compatibility is retained, but does not verify that image's board.
+The packager rejects wrong-chip/board images, generated-slot overflow and stale
+factory inputs. The release workflow additionally checks version, S3/x4c identity,
+DIO/16 MB/80 MHz/minimum revision 0 and the known 8,257,536-byte installed app-slot
+limit offline. This is not proof that a generated factory partition table matches
+an installed reader. Runtime slot-size rejection remains required. A present
+wrong-board tag rejects; historical untagged-image compatibility is not board verification.
 
-The 2026-10-30 post-review `gh_release_x4c` application is 7,618,176 bytes against
-two generated 8,323,072-byte app slots (704,896 bytes of image headroom). Its factory
-image was checked against that same build's bootloader at `0x0`, partitions at
-`0x8000`, framework boot-app data at `0xe000`, and application at `0x10000`.
-`qa-artifacts/x4c-integration/final/package-validation.json` records the exact
-input, packaged-image and archive hashes. These numbers do not establish fit in
-an unknown installed partition table.
+Classic uses the application through an already compatible SD updater; never
+give that updater the factory image. Factory USB at `0x0` requires separate
+physical identity, USB-lock, backup and recovery checks. No reader is flashed by
+the build/release process. Do not use Pro online-update assets or instructions.
 
-Classic installation is local only. Use the application through an already
-compatible SD updater; never give that updater the factory image. Factory USB
-at `0x0` is unavailable until separate physical identity, USB-lock, backup and
-recovery checks authorize it. No such gate, flash, recovery or public publishing
-was performed here. Do not use the Pro online-update asset or online-update
-instructions below for Classic.
+## Publishing a Classic release
+
+The public producer is `.github/workflows/release.yml` (**Release X4 Classic**),
+restricted to `achappell/CrossNext-X4-Classic`. After source review and native/device
+software checks, commit the exact reviewed tree and fast-forward public main.
+Create a new tag such as `v1.4.0-x4-classic` at that full reviewed commit; never
+reuse upstream's `1.4.0` tag or overwrite an existing release.
+
+Dispatch on that tag, substituting the full reviewed SHA:
+
+```sh
+gh workflow run release.yml --repo achappell/CrossNext-X4-Classic \
+  --ref v1.4.0-x4-classic -f tag=v1.4.0-x4-classic -f expected_commit=REVIEWED_FULL_SHA
+```
+
+The workflow refuses a mismatched tag/SHA/version or diagnostic source, builds
+only `gh_release_x4c`, and runs the existing Classic packager. It publishes raw
+application and clearly named factory images, the model ZIP, checksums, license
+notices, input manifest and `release-provenance.json`. No new secrets are needed;
+only the publishing job grants the repository token `contents: write`.
+
+Download the actual public assets after success. Check `SHA256SUMS-v1.4.0-x4-classic.txt`,
+the application board/version/header and provenance commit, not merely job status.
+Existing upstream 1.4.0 resources remain compatible; this release does not replace
+books, saves or `.crosspoint` data. Publishing is not permission to install a reader.
 
 ## Update an existing compatible installation from microSD
 
@@ -64,7 +82,7 @@ table and application. For example, with esptool installed and the device in
 download mode, use the matching model's command:
 
 ```sh
-esptool.py --chip esp32s3 --baud 921600 write_flash 0x0 CrossNext-X4PRO-Firmware-v1.3.1-factory.bin
+esptool.py --chip esp32s3 --baud 921600 write_flash 0x0 CrossNext-X4PRO-Firmware-v1.4.0-factory.bin
 ```
 
 An application-only image belongs at `0x10000` when deliberately writing an
@@ -83,7 +101,7 @@ wait for the release check. The firmware queries only
 It compares the latest stable tag with the installed version and asks before
 installing. It does not query the CrossPlay proxy or CrossPoint releases.
 
-For each public GitHub Release, use a semantic tag such as `1.3.1` and attach
+For each upstream Pro GitHub Release, use a semantic tag such as `1.4.0` and attach
 `CrossNext-X4PRO-OTA.bin` directly to the release. The packaging tool creates this
 stable application-only alias alongside the versioned application and factory
 images. Its bytes match the versioned application. The updater deliberately

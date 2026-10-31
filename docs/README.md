@@ -86,8 +86,6 @@ in the body and prepends the same block to the history; `scripts_local/ship.sh`
 commits both in the configured release workspace before the build that ships (the version is
 compiled into the firmware, so the order is load-bearing). Edit the tooling, not the files -- except the body's
 one standing line of links, which is prose and is left alone by the generator.
-`host-tests/release` holds the body to a size ceiling and refuses install steps
-on it; growing it back is a test failure, not a judgement call.
 
 Only landings a person could receive something different from become notes, and
 the question is put to `scripts_local/device-build-needed.sh --ships` -- the

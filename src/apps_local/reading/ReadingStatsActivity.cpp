@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "../ui/PixelMenuTheme.h"
+#include "ReadingGoal.h"
 #include "ReadingStatsCloudClient.h"
 #include "ReadingStatsScreens.h"
 #include "ReadingStatsSyncActivity.h"
@@ -57,6 +58,11 @@ void ReadingStatsActivity::onExit() {
   Activity::onExit();
 }
 void ReadingStatsActivity::back() {
+  if (goalCalendarVisible) {
+    goalCalendarVisible = false;
+    requestUpdate();
+    return;
+  }
   if (pickerVisible) {
     pickerVisible = false;
     periodFromPicker = false;
@@ -270,6 +276,57 @@ void ReadingStatsActivity::action(fui::ActionId action, int value) {
       action != readingui::Tab)
     return;
   switch (action) {
+    case readingui::GoalChoose: {
+      if (SETTINGS.readingDailyGoal && !goalCalendarVisible) return;
+      std::vector<std::string> options;
+      options.reserve(std::size(readinggoal::minutes));
+      for (unsigned minutes : readinggoal::minutes) {
+        char label[48];
+        if (minutes)
+          std::snprintf(label, sizeof(label), tr(STR_READING_DURATION_M), static_cast<unsigned long long>(minutes));
+        else
+          std::snprintf(label, sizeof(label), "%s", tr(STR_NONE_OPT));
+        options.emplace_back(label);
+      }
+      goalPopup.show(StrId::STR_GOAL_DAILY, options, SETTINGS.readingDailyGoal, [this](int n) {
+        if (n < 0 || n >= int(std::size(readinggoal::minutes))) return;
+        if (SETTINGS.readingDailyGoal != n) {
+          const auto previous = SETTINGS.readingDailyGoal;
+          SETTINGS.readingDailyGoal = n;
+          if (!SETTINGS.saveToFile()) {
+            SETTINGS.readingDailyGoal = previous;
+            requestUpdate();
+            const char* options[] = {tr(STR_OK_BUTTON)};
+            goalPopup.showMessage(tr(STR_GOAL_DAILY), tr(STR_TOOLS_SAVE_FAILED), options, 1, 0,
+                                  [this](int) { requestUpdate(); });
+            return;
+          }
+        }
+        requestUpdate();
+      });
+      requestUpdate();
+      return;
+    }
+    case readingui::GoalCalendar:
+      goalCalendarVisible = true;
+      goalMonth =
+          clockKnown ? readingstats::dateFromDay(currentDay).year * 12 + readingstats::dateFromDay(currentDay).month - 1
+                     : 0;
+      requestUpdate();
+      return;
+    case readingui::GoalBack:
+      goalCalendarVisible = false;
+      requestUpdate();
+      return;
+    case readingui::GoalMonth:
+      if (!clockKnown) return;
+      goalMonth =
+          std::clamp(goalMonth + value,
+                     (readingstats::dateFromDay(currentDay - readingstats::kHistoryDays + 1).year * 12 +
+                      readingstats::dateFromDay(currentDay - readingstats::kHistoryDays + 1).month - 1),
+                     readingstats::dateFromDay(currentDay).year * 12 + readingstats::dateFromDay(currentDay).month - 1);
+      requestUpdate();
+      return;
     case readingui::ImportHistory:
       importHistory();
       return;
@@ -325,7 +382,10 @@ void ReadingStatsActivity::action(fui::ActionId action, int value) {
       return;
     case readingui::Tab:
       if (value < 0 || value > 3 || !summaryReady) return;
-      if (value == tab && !details && !pickerVisible && period == readingstats::Period::Calendar) return;
+      if (value == tab && !details && !pickerVisible && !goalCalendarVisible &&
+          period == readingstats::Period::Calendar)
+        return;
+      goalCalendarVisible = false;
       repository.close();
       loading = Load::Ready;
       details = false;
@@ -415,6 +475,7 @@ void ReadingStatsActivity::action(fui::ActionId action, int value) {
   }
 }
 void ReadingStatsActivity::loop() {
+  if (goalPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
   if (!navigation.capture(mappedInput, millis())) LOG_ERR("STATS", "Navigation queue full");
   RenderLock lock(RenderLock::Mode::Try);
   if (!lock.ownsLock()) return;
@@ -436,6 +497,19 @@ void ReadingStatsActivity::loop() {
       navigation.clear();
       back();
       return;
+    }
+    if (command.kind == sectionnav::Input::Kind::Confirm && sidebuttons::classic() && ready &&
+        loading == Load::Ready && !*initialBook && !details && !pickerVisible &&
+        (goalCalendarVisible || (tab == 0 && (source != readingstats::Source::Unified || cloudDayKnown)))) {
+      navigation.clear();
+      action(goalCalendarVisible || !SETTINGS.readingDailyGoal ? readingui::GoalChoose : readingui::GoalCalendar,
+             0);
+      return;
+    }
+    if (goalCalendarVisible) {
+      if (command.kind == sectionnav::Input::Kind::Step || command.kind == sectionnav::Input::Kind::Section)
+        action(readingui::GoalMonth, command.amount);
+      continue;
     }
     if (*initialBook || details || pickerVisible) continue;
     if (command.kind == sectionnav::Input::Kind::Step) {
@@ -489,7 +563,9 @@ void ReadingStatsActivity::loop() {
   }
   if (ready && !details) {
     if (const int direction = sidebuttons::horizontalStep(mappedInput)) {
-      if (pickerVisible)
+      if (goalCalendarVisible)
+        action(readingui::GoalMonth, direction);
+      else if (pickerVisible)
         action(readingui::PickerYear, direction);
       else if (tab == 0)
         action(readingui::Day, direction);
@@ -501,11 +577,11 @@ void ReadingStatsActivity::loop() {
     }
   }
   if (!*initialBook && mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-    action(readingui::Tab, (tab + 3) % 4);
+    action(goalCalendarVisible ? readingui::GoalMonth : readingui::Tab, goalCalendarVisible ? -1 : (tab + 3) % 4);
     return;
   }
   if (!*initialBook && mappedInput.wasReleased(MappedInputManager::Button::Right)) {
-    action(readingui::Tab, (tab + 1) % 4);
+    action(goalCalendarVisible ? readingui::GoalMonth : readingui::Tab, goalCalendarVisible ? 1 : (tab + 1) % 4);
     return;
   }
   if (tab == 3 && !details) {
@@ -561,8 +637,6 @@ void ReadingStatsActivity::render(RenderLock&&) {
   for (unsigned char c : detail.title) unicode |= c >= 0x80;
   pixelui::bindFonts(target, renderer, unicode);
   const fui::InputSnapshot noInput{};
-  toybox::Frame frame(target, target.deviceContext(), noInput, interactions);
-  toybox::Screen screen(frame);
   readingui::Model model;
   uiWork.status.status.battery.label = nullptr;
   GUI.applyHeaderStatus(renderer, uiWork.status);
@@ -585,7 +659,9 @@ void ReadingStatsActivity::render(RenderLock&&) {
   model.pickerVisible = pickerVisible;
   model.pickerYear = pickerYear;
   model.today = tab == 0 && !clockKnown ? 0 : currentDay;
-  model.month = month;
+  model.month = goalCalendarVisible ? goalMonth : month;
+  model.goalCalendarVisible = goalCalendarVisible;
+  model.goalMinutes = readinggoal::target(SETTINGS.readingDailyGoal);
   model.tab = tab;
   model.page = page;
   model.count = count;
@@ -599,9 +675,25 @@ void ReadingStatsActivity::render(RenderLock&&) {
   model.syncAvailable = readingstats::cloud::Client::configured();
   model.importedAvailable = cloudAvailable;
   model.importedActive = cloudAvailable ? combined->data().active : nullptr;
+  model.importedKnown = cloudAvailable ? combined->data().known : nullptr;
   model.importedAnchor = cloudAvailable ? combined->data().summary.anchorDay : 0;
   model.dailyKnown = tab == 0 ? cloudDayKnown : cloudPeriodKnown;
+  const bool goalHints =
+      sidebuttons::classic() && !model.loading && !model.failed && !model.bookOnly && !details && !pickerVisible &&
+      (goalCalendarVisible || (tab == 0 && (source != readingstats::Source::Unified || model.dailyKnown)));
+  auto device = target.deviceContext();
+  if (goalHints) device.safeArea.bottom += UITheme::getInstance().getMetrics().buttonHintsHeight;
+  toybox::Frame frame(target, device, noInput, interactions);
+  toybox::Screen screen(frame);
   readingui::build(screen, model, uiWork);
+  if (goalHints) {
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK),
+                                             goalCalendarVisible || !model.goalMinutes ? tr(STR_GOAL_SET)
+                                                                                       : tr(STR_READING_CALENDAR),
+                                             tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
+  if (goalPopup.isActive()) goalPopup.render(renderer);
   ready = true;
   toybox::reportOverflow(interactions, "ReadingStats");
   renderer.displayBuffer();

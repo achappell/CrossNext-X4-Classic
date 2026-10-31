@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import struct
 import tempfile
 
 from PIL import Image
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PARSER = argparse.ArgumentParser(description=__doc__)
 PARSER.add_argument("--program", type=Path, default=ROOT / ".pio/build/simulator_x4_classic/program")
 PARSER.add_argument("--output", type=Path, required=True)
+PARSER.add_argument("--pro-program", type=Path, help="Also exercise shared touch/side behavior on the real Pro program")
 ARGS = PARSER.parse_args()
 PROGRAM = ARGS.program.resolve()
 OUTPUT = ARGS.output.resolve()
@@ -28,7 +30,7 @@ OUTPUT.mkdir(parents=True, exist_ok=True)
 RESULTS = {}
 
 
-def run(name, keys, shots, seed, work):
+def run(name, keys, shots, seed, work, program=None):
     """Each process receives an independent copy of a real simulator SD fixture."""
     target = OUTPUT / name
     target.mkdir(exist_ok=True)
@@ -40,11 +42,12 @@ def run(name, keys, shots, seed, work):
                SDL_MAC_BACKGROUND_APP="1", CROSSPOINT_SIM_INPUT_SCRIPT=script,
                CROSSPOINT_SIM_SCREENSHOTS=captures)
     (target / "input.txt").write_text(script + "\n")
-    process = subprocess.run([str(PROGRAM)], cwd=ROOT, env=env, capture_output=True, timeout=45)
+    process = subprocess.run([str(program or PROGRAM)], cwd=ROOT, env=env, capture_output=True, timeout=45)
     log = process.stdout.decode(errors="replace") + process.stderr.decode(errors="replace")
     (target / "runtime.log").write_text(log)
     assert process.returncode == 0, (name, process.returncode)
-    assert "classic=1 touch=0 frontlight=0 home=0" in log, "not the Classic no-touch program"
+    identity = "classic=0 touch=1 frontlight=1 home=1" if program else "classic=1 touch=0 frontlight=0 home=0"
+    assert identity in log, "wrong simulator board/capabilities"
     for _, label in shots:
         bmp = target / f"{label}.bmp"
         with Image.open(bmp) as image:
@@ -126,12 +129,19 @@ with tempfile.TemporaryDirectory(prefix="classic-navigation-") as temporary:
     check("chooser-hide-and-return", sum(value > 128 for value in header_gutter.tobytes()) > 100 and
           "Entering activity: Checkers" in log)
 
-    keys = entry + [(3000, "DOWN"), (4000, "UP"), (5000, "DOWN:450"), (6500, "QUIT")]
-    run("sides", keys, [(3700, "next"), (4700, "previous"), (6100, "page")], empty, work)
+    # SectionNavigation starts at 350ms, then repeats at 300ms. Leave a normal
+    # long hold enough margin for capture across the renderer's busy interval.
+    keys = entry + [(3000, "DOWN"), (4000, "UP"), (5000, "DOWN:1200"), (7200, "QUIT")]
+    _, sides_log = run("sides", keys, [(3700, "next"), (4700, "previous"), (6700, "page")], empty, work)
     check("side-short-and-held", row_selected("sides", "next", 1) and
           row_selected("sides", "previous", 0) and row_selected("sides", "page", 0) and
           image("sides", "previous").crop((120, 180, 700, 315)).tobytes() !=
           image("sides", "page").crop((120, 180, 700, 315)).tobytes())
+    held_pages = [(int(at), int(target), int(count)) for at, target, count in re.findall(
+        r"^\[(\d+)\].*\[SHELF\] Page \d+ -> (\d+) of (\d+)", sides_log, re.MULTILINE)
+                  if 5000 <= int(at) <= 6700]
+    check("side-held-repeats-within-page-bounds", len({at for at, _, _ in held_pages}) >= 2 and
+          all(0 <= target < count for _, target, count in held_pages))
 
     keys = entry + [(3000, "LEFT"), (3900, "UP:450"), (5200, "ENTER"), (6600, "QUIT")]
     _, log = run("clamped-side", keys, [(3500, "chrome"), (4900, "row")], empty, work)
@@ -187,10 +197,175 @@ with tempfile.TemporaryDirectory(prefix="classic-navigation-") as temporary:
     multi, log = run("seed-second", [(800, "ENTER"), (1800, "ENTER"), (2400, "DOWN"), (2800, "ENTER"),
                                     (4300, "BACK"), (5600, "QUIT")], [(5100, "home")], second_seed, work)
     assert reader_opened(log, "/books/Second.epub", 2800)
+
+    # Feed the real completion-index consumer using the journal's public binary
+    # format. These books have distinct content IDs, not two copies of one EPUB.
+    completed_seed = work / "completed-seed"
+    shutil.copytree(multi, completed_seed)
+    journal = bytearray(bytes.fromhex("43525331800100000000000000000000"))
+    ids = []
+    epoch = 1793102400
+    day = epoch // 86400
+    for filename, title in [("Navigation.epub", "Reader Menu Progress"), ("Second.epub", "Second")]:
+        data = (completed_seed / "books" / filename).read_bytes()
+        document = hashlib.md5(b"".join(data[offset:offset + 1024] for offset in
+                                      [0] + [1024 << (2 * n) for n in range(11)]
+                                      if offset < len(data))).hexdigest()
+        ids.append(document)
+        for kind in ([1] if filename == "Navigation.epub" else [1, 2]):
+            record = bytearray(384)
+            record[:4] = b"RSE1"
+            record[12], record[13] = int(kind == 1), kind
+            struct.pack_into("<Hq", record, 14, 10000 if kind == 1 else 4500, epoch)
+            record[104:136] = document.encode()
+            record[137:137 + len(title)] = title.encode()
+            record[329] = int(kind == 1)
+            struct.pack_into("<IIII", record, 330, day, epoch % 86400,
+                             day if kind == 1 else 0, day if kind == 2 else 0)
+            record[346] = int(kind == 2)
+            checksum = 2166136261
+            for byte in record[:380]:
+                checksum = ((checksum ^ byte) * 16777619) & 0xffffffff
+            struct.pack_into("<I", record, 380, checksum)
+            journal.extend(record)
+            epoch += 1000
+    assert ids[0] != ids[1], "completion fixtures must have distinct document IDs"
+    history = completed_seed / ".crosspoint/reading-history"
+    history.mkdir(exist_ok=True)
+    (history / "sessions.bin").write_bytes(journal)
+    for display, name, moves, expected in [
+        (7, "library-finished-visible", 2, "/books/Navigation.epub"),
+        (6, "library-finished-hidden", 1, "/books/Second.epub"),
+    ]:
+        seed = work / (name + "-seed")
+        shutil.copytree(completed_seed, seed)
+        (seed / ".crosspoint/settings.json").write_text(json.dumps(
+            {"libraryDisplay": display, "libraryClassicGrid": 0}))
+        keys = [(800, "DOWN"), (1500, "ENTER")]
+        keys += [(2700 + n * 500, "RIGHT") for n in range(moves)]
+        keys += [(3900, "ENTER"), (5700, "QUIT")]
+        _, log = run(name, keys, [(2400, "rows"), (3500, "selected"), (5100, "reader")], seed, work)
+        check(name + "-matching-path", "Entering activity: Library" in log and reader_opened(log, expected, 3900))
+    check("library-finished-removes-visible-completed-row",
+          image("library-finished-visible", "rows").crop((0, 160, 960, 1200)).tobytes() !=
+          image("library-finished-hidden", "rows").crop((0, 160, 960, 1200)).tobytes())
+
+    seed = work / "library-filter-seed"
+    shutil.copytree(multi, seed)
+    (seed / ".crosspoint/settings.json").write_text(json.dumps({"libraryClassicGrid": 0}))
+    _, log = run("library-filter", [
+        (800, "DOWN"), (1500, "ENTER"), (2700, "ENTER"),
+        (3500, "RIGHT"), (4100, "LEFT"), (4800, "ENTER"),
+        (5700, "ENTER"), (6600, "RIGHT"), (7400, "ENTER"), (9300, "QUIT"),
+    ], [(3200, "categories"), (3900, "next-category"), (4500, "first-category"),
+        (5400, "values"), (6300, "books"), (8600, "reader")], seed, work)
+    check("library-filter-physical-focus-and-open",
+          image("library-filter", "next-category").crop((0, 160, 960, 1200)).tobytes() !=
+          image("library-filter", "first-category").crop((0, 160, 960, 1200)).tobytes() and
+          reader_opened(log, "/books/Navigation.epub", 7400))
+
+    # Classic Confirm enters the real daily-goal popup, then opens its calendar
+    # and changes the target through that same existing popup.
+    goal_card, log = run("daily-goal", [
+        (800, "DOWN"), (1100, "DOWN"), (1400, "DOWN"), (2000, "ENTER"),
+        (3300, "ENTER"), (4000, "RIGHT"), (4700, "ENTER"),
+        (5700, "ENTER"), (6500, "ENTER"), (7200, "RIGHT"), (7900, "ENTER"),
+        (8800, "BACK"), (9800, "QUIT"),
+    ], [(3000, "today"), (3700, "choose"), (5400, "configured"),
+        (6200, "calendar"), (6900, "change"), (8500, "changed")], empty, work)
+    goal_settings = json.loads((goal_card / ".crosspoint/settings.json").read_text())
+    check("daily-goal-physical-setup-calendar-change",
+          "Entering activity: ReadingStats" in log and goal_settings.get("readingDailyGoal") == 2 and
+          image("daily-goal", "today").tobytes() != image("daily-goal", "choose").tobytes() and
+          image("daily-goal", "configured").tobytes() != image("daily-goal", "calendar").tobytes())
+
+    failure_seed = work / "goal-save-failure-seed"
+    shutil.copytree(empty, failure_seed)
+    # The native HAL writes settings directly, unlike the device's .tmp writer.
+    (failure_seed / ".crosspoint/settings.json").write_text(json.dumps(
+        {"homeLayout": 0, "homeLayoutVersion": 2, "readingDailyGoal": 0}))
+    (failure_seed / ".crosspoint/settings.json").chmod(0o444)
+    failed_card, _ = run("daily-goal-save-failure", [
+        (800, "DOWN"), (1100, "DOWN"), (1400, "DOWN"), (2000, "ENTER"),
+        (3300, "ENTER"), (4000, "RIGHT"), (4700, "ENTER"), (5900, "ENTER"), (7600, "QUIT"),
+    ], [(3000, "before"), (5500, "error"), (7000, "restored")], failure_seed, work)
+    goal_region = (0, 400, 960, 1450)
+    check("daily-goal-save-failure-restores-target",
+          json.loads((failed_card / ".crosspoint/settings.json").read_text()).get("readingDailyGoal") == 0 and
+          image("daily-goal-save-failure", "before").crop(goal_region).tobytes() ==
+          image("daily-goal-save-failure", "restored").crop(goal_region).tobytes() and
+          image("daily-goal-save-failure", "error").crop(goal_region).tobytes() !=
+          image("daily-goal-save-failure", "restored").crop(goal_region).tobytes())
+
+    _, log = run("epub-contents-return", [
+        (800, "LEFT"), (1500, "ENTER"), (2800, "ENTER"), (3600, "ENTER"),
+        (4400, "RIGHT"), (5200, "ENTER"), (6800, "BACK"),
+        (8300, "BACK:1200"), (10400, "QUIT"),
+    ], [(2500, "origin"), (6300, "destination"), (7800, "returned"), (10000, "left-reader")], opened, work)
+    region = (0, 160, 960, 1300)
+    check("epub-contents-short-back-restores",
+          image("epub-contents-return", "origin").crop(region).tobytes() !=
+          image("epub-contents-return", "destination").crop(region).tobytes() and
+          image("epub-contents-return", "origin").crop(region).tobytes() ==
+          image("epub-contents-return", "returned").crop(region).tobytes())
+    check("epub-contents-long-back-retains-navigation",
+          any(int(at) > 8300 for at in re.findall(r"^\[(\d+)\].*Entering activity: FileBrowser$", log, re.MULTILINE)))
+
+    _, log = run("settings-scroll", [
+        (900, "LEFT"), (1700, "ENTER"), (2700, "RIGHT"), (3500, "ENTER"),
+        *[(4500 + n * 300, "RIGHT") for n in range(12)],
+        (8800, "BACK"), (10300, "QUIT"),
+    ], [(4100, "initial"), (8400, "scrolled"), (9800, "categories")], empty, work)
+    check("settings-physical-scroll-and-back",
+          image("settings-scroll", "initial").crop((0, 160, 960, 1450)).tobytes() !=
+          image("settings-scroll", "scrolled").crop((0, 160, 960, 1450)).tobytes() and
+          "Entering activity: Settings" in log)
+
+    # A real two-chapter XTC: chapter records precede the page table, with
+    # contrasting bitmap pages so restoration is observable through rendering.
+    xtc_seed = work / "xtc-return-seed"
+    shutil.copytree(empty, xtc_seed)
+    (xtc_seed / "books/Navigation.epub").unlink()
+    table, payload = 56 + 2 * 96, 480 * 800 // 8
+    page_size = 22 + payload
+    first_page = table + 2 * 16
+    xtc = bytearray(first_page + 2 * page_size)
+    struct.pack_into("<4sBBHBBBBIQQQQII", xtc, 0, b"XTC\0", 1, 0, 2,
+                     0, 0, 0, 1, 1, 0, table, first_page, 0, 56, 0)
+    for n in range(2):
+        at = 56 + n * 96
+        title = f"Chapter {n + 1}".encode()
+        xtc[at:at + len(title)] = title
+        struct.pack_into("<HH", xtc, at + 80, n + 1, n + 1)
+        at = first_page + n * page_size
+        struct.pack_into("<QIHH", xtc, table + n * 16, at, page_size, 480, 800)
+        struct.pack_into("<4sHHBBIQ", xtc, at, b"XTG\0", 480, 800, 0, 0, payload, 0)
+        xtc[at + 22:at + page_size] = bytes([0xaa if n else 0xff]) * payload
+    (xtc_seed / "books/Return.xtc").write_bytes(xtc)
+    _, log = run("xtc-contents-return", [
+        (800, "ENTER"), (1600, "ENTER"), (2400, "ENTER"), (4000, "ENTER"),
+        (4800, "RIGHT"), (5600, "ENTER"), (7100, "BACK"), (8600, "BACK"), (10300, "QUIT"),
+    ], [(3500, "origin"), (6600, "destination"), (8100, "returned"), (9700, "home")], xtc_seed, work)
+    check("xtc-contents-short-back-and-inactive-back",
+          image("xtc-contents-return", "origin").crop(region).tobytes() !=
+          image("xtc-contents-return", "destination").crop(region).tobytes() and
+          image("xtc-contents-return", "origin").crop(region).tobytes() ==
+          image("xtc-contents-return", "returned").crop(region).tobytes() and
+          any(int(at) > 8600 for at in re.findall(r"^\[(\d+)\].*Entering activity: Home$", log, re.MULTILINE)))
+    _, log = run("xtc-active-return-long-back", [
+        (800, "ENTER"), (1600, "ENTER"), (2400, "ENTER"), (4000, "ENTER"),
+        (4800, "RIGHT"), (5600, "ENTER"), (7100, "BACK:1200"), (9800, "QUIT"),
+    ], [(6600, "active-return"), (9300, "browser")], xtc_seed, work)
+    check("xtc-active-return-long-back-retains-navigation",
+          any(int(at) > 7100 for at in re.findall(
+              r"^\[(\d+)\].*Entering activity: FileBrowser$", log, re.MULTILINE)))
     for name, settings, lefts, expected in [
         ("carousel", {"homeLayout": 1}, 1, "/books/Second.epub"),
         ("cover-grid", {"homeLayout": 0, "uiTheme": 4}, 2, "/books/Second.epub"),
         ("cover-grid-second", {"homeLayout": 0, "uiTheme": 4}, 1, "/books/Navigation.epub"),
+        ("carousel-2", {"homeLayout": 2, "homeLayoutVersion": 2}, 1, "/books/Second.epub"),
+        ("bookshelf-continue", {"homeLayout": 3, "uiTheme": 4}, 3, "/books/Second.epub"),
+        ("bookshelf-second", {"homeLayout": 3, "uiTheme": 4}, 1, "/books/Navigation.epub"),
     ]:
         seed = work / (name + "-seed")
         shutil.copytree(multi, seed)
@@ -208,6 +383,51 @@ with tempfile.TemporaryDirectory(prefix="classic-navigation-") as temporary:
         check(name + "-focus-path", initial != focused and initial == restored and
               reader_opened(log, expected, 4600))
 
+    seed = work / "carousel-2-settings-seed"
+    shutil.copytree(multi, seed)
+    (seed / ".crosspoint/settings.json").write_text(json.dumps({"homeLayout": 2, "homeLayoutVersion": 2}))
+    _, log = run("carousel-2-settings", [(1000, "LEFT"), (1800, "LEFT"), (2700, "ENTER"), (4300, "QUIT")],
+                 [(700, "initial"), (2300, "focused"), (3600, "opened")], seed, work)
+    check("carousel-2-settings-focus-open",
+          image("carousel-2-settings", "initial").crop((0, 0, 960, 120)).tobytes() !=
+          image("carousel-2-settings", "focused").crop((0, 0, 960, 120)).tobytes() and
+          any(int(at) > 2700 for at in re.findall(r"^\[(\d+)\].*Entering activity: Settings$", log, re.MULTILINE)))
+
+    paged_seed = work / "bookshelf-paged-seed"
+    shutil.copytree(multi, paged_seed)
+    for n in range(7):
+        shutil.copy2(ROOT / "test/epubs/test_reader_menu_progress.epub", paged_seed / f"books/Page{n}.epub")
+    (paged_seed / ".crosspoint/settings.json").write_text(json.dumps(
+        {"homeLayout": 3, "uiTheme": 4, "homeRecentBookCount": 2}))
+    _, log = run("bookshelf-pages", [
+        (1000, "BACK"), (1800, "LEFT"), (2700, "ENTER"), (3500, "LEFT"), (4300, "LEFT"),
+        (5200, "ENTER"), (6400, "ENTER"), (8200, "QUIT"),
+    ], [(2300, "first"), (3100, "second"), (5800, "restored"), (7400, "reader")], paged_seed, work)
+    def page_band(label):
+        im = image("bookshelf-pages", label)
+        return im.crop((int(im.width * .45), int(im.height * .72),
+                        int(im.width * .55), int(im.height * .83))).tobytes()
+    check("bookshelf-page-controls-return-and-open", page_band("first") != page_band("second") and
+          page_band("first") == page_band("restored") and reader_opened(log, "/books/Second.epub", 6400))
+
+    if ARGS.pro_program:
+        _, log = run("pro-shared-input", [
+            (1000, "TAP:120,200"), (2800, "BACK"), (4000, "LEFT"), (5100, "ENTER"), (6100, "BACK"),
+            (7100, "UP"), (7400, "UP"), (7900, "ENTER"), (9000, "DOWN"), (10100, "UP"),
+            (11200, "TAP:200,195"), (12800, "QUIT"),
+        ], [(700, "home"), (2200, "reader"), (4600, "legacy-menu"), (5700, "settings"),
+            (8500, "games"), (9700, "page-two"), (10700, "page-one"), (12000, "checkers")],
+            opened, work, program=ARGS.pro_program.resolve())
+        check("pro-touch-opens-matching-book", reader_opened(log, "/books/Navigation.epub", 1000))
+        check("pro-legacy-menu-settings", any(int(at) > 5100 for at in re.findall(
+            r"^\[(\d+)\].*Entering activity: Settings$", log, re.MULTILINE)))
+        check("pro-side-pages-and-touch-row", "Page 0 -> 1" in log and "Page 1 -> 0" in log and
+              any(int(at) > 11200 for at in re.findall(
+                  r"^\[(\d+)\].*Entering activity: Checkers$", log, re.MULTILINE)))
+
 report = {"program": str(PROGRAM), "sha256": hashlib.sha256(PROGRAM.read_bytes()).hexdigest(), "checks": RESULTS}
+if ARGS.pro_program:
+    report["pro_program"] = str(ARGS.pro_program.resolve())
+    report["pro_sha256"] = hashlib.sha256(ARGS.pro_program.read_bytes()).hexdigest()
 (OUTPUT / "results.json").write_text(json.dumps(report, indent=2) + "\n")
 raise SystemExit(0 if all(RESULTS.values()) else 1)

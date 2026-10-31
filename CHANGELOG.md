@@ -1,5 +1,32 @@
 # CrossNext changes
 
+## X4 Classic on upstream CrossNext 1.4.0 — 2026-10-31
+
+- Integrate official upstream 1.4.0, including Carousel 2/Bookshelf, library filters,
+  reading goals and UI refinements, while retaining Classic S3 hardware profiles,
+  front-button Apps/Games navigation, Continue focus and normal WiFi.
+- Keep visible book/Settings focus in Carousel 2 and book/drawer/page focus in
+  Bookshelf. Preserve translated Checkers lesson sizing and invalid-time Clock handling.
+- Extend the real native key-only consumer runner with the new Home modes and
+  page controls; an optional Pro program exercises the existing touch/side path.
+  Earlier 2026-10-30 evidence below is historical, not proof for this update.
+- Restore button-only Library Filter entry and visible category/value selection.
+  Classic short Back activates the temporary EPUB/XTC chapter Return; long and
+  inactive Back keep their navigation. Today/calendar Confirm reaches daily-goal
+  setup and changes, with save-failure feedback and in-memory target restoration.
+- Distinguish unknown clock from storage failure in goal wallpaper, and imported
+  active days without numeric durations from known missed goals. Preserve existing
+  history/target formats and the documented coarse Bookshelf inventory policy.
+- Register the existing goal-cache/cover host tests with a portable runner and
+  remove superseded UI/source/wording assertions while retaining semantic bounds,
+  routing, actual partition arithmetic and production-consumer regression cases.
+- Adapt the existing release workflow to this fork's ordinary Classic profile,
+  reviewed tag/commit, current-build application/factory ZIP, checksums, licenses
+  and provenance. Public binaries remain software artifacts, not physically
+  validated firmware or authorization to flash/repartition a reader.
+- Keep private instrumentation and the forensic local branch/artifacts outside
+  the current public source and release. Existing upstream resources remain compatible.
+
 ## Local X4 Classic software candidate — 2026-10-30
 
 - Restore the standard WiFi picker in public Classic builds; retain the Classic port and navigation fixes.

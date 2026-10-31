@@ -1,58 +1,91 @@
-name: Compile Release
+name: Release X4 Classic
 
-# Builds every board's release firmware on tag push, with the .bin named
-# exactly as OtaUpdater requests it from the GitHub release: plain
-# firmware.bin for the C3 X4/X3 binary, firmware-<board>.bin for every other
-# board. Attach the artifacts' .bin files to the release as-is.
-
-# FORK CHANGE: was `push: tags: ['*']`. On a tag push this would race
-# crossplay-release.yml and burn minutes building firmware for boards this
-# fork does not target (only the X4 Pro is built here). Kept rather than
-# deleted so merges from upstream stay clean; run it by hand if you ever
-# need upstream's artefacts out of this tree.
+# Dispatch on the reviewed, already-pushed tag, never on moving main.
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'New Classic tag, for example v1.4.0-x4-classic'
+        required: true
+        type: string
+      expected_commit:
+        description: 'Full reviewed commit SHA to build and publish'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: classic-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   build-release:
-    if: github.repository == 'ma-r-s/crossplay'
+    if: github.repository == 'achappell/CrossNext-X4-Classic'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - pio_env: gh_release
-            asset: firmware.bin
-          - pio_env: sticky-gh_release
-            asset: firmware-sticky.bin
-          - pio_env: x4pro-gh_release
-            asset: firmware-x4pro.bin
-          - pio_env: papermono-gh_release
-            asset: firmware-papermono.bin
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind the release to the reviewed Classic source
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          python3 - <<'PY'
+          import configparser, os, re, subprocess
+          from pathlib import Path
+          config = configparser.ConfigParser(interpolation=None)
+          config.read('platformio.ini')
+          version = config['crossplay']['version']
+          tag = os.environ['RELEASE_TAG']
+          expected = os.environ['EXPECTED_COMMIT']
+          if not re.fullmatch(r'[0-9a-f]{40}', expected):
+              raise SystemExit('expected_commit must be the full reviewed commit SHA')
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          tagged = subprocess.check_output(['git', 'rev-parse', f'refs/tags/{tag}^{{commit}}'], text=True).strip()
+          if head != expected or tagged != expected or os.environ['GITHUB_REF'] != f'refs/tags/{tag}':
+              raise SystemExit('Dispatch must run on the tag at exactly the reviewed commit')
+          if tag != f'v{version}-x4-classic':
+              raise SystemExit('Tag must match the firmware version and Classic suffix')
+          if config['env:gh_release_x4c']['extends'] != 'x4c_common':
+              raise SystemExit('Missing ordinary Classic release profile')
+          flags = config['x4c_common']['build_flags']
+          if '-DFREEINK_DEVICE_X4CLASSIC=1' not in flags or '-DBOARD_HAS_PSRAM' not in flags:
+              raise SystemExit('Classic board/PSRAM profile is missing')
+          # Compose exclusion names so this guard can scan its own workflow too.
+          markers = ['Wifi' + 'Diagnostics', 'wifi' + 'diagnostics', 'CROSSNEXT_WIFI_' + 'DIAGNOSTICS',
+                     'x4c_wifi_' + 'diagnostics', 'classic-wifi-' + 'diagnostic']
+          command = ['git', 'grep', '-n', '-I']
+          for marker in markers:
+              command += ['-e', marker]
+          command += ['--', '.']
+          result = subprocess.run(command)
+          if result.returncode != 1:
+              raise SystemExit('Public source diagnostic exclusion failed')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
 
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v7
         with:
-          version: "latest"
           enable-cache: false
 
-      - name: Install PlatformIO Core
+      - name: Install the existing pinned firmware toolchain
         run: |
           uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
-          # platform-espressif32's builder/main.py imports these unconditionally; its own
-          # penv bootstrap (builder/penv_setup.py) is supposed to install them automatically
-          # but isn't picking them up reliably in this runner image, so pin them explicitly.
           uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
             "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
             "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
@@ -62,37 +95,110 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-${{ runner.os }}-
-      - name: Pin pioarduino core inside the platform penv
+          key: pio-classic-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-classic-${{ runner.os }}-
+
+      - name: Build ordinary X4 Classic release only
+        run: pio run -e gh_release_x4c -j1
+
+      - name: Package current Classic application and factory inputs
+        run: python3 tools_local/package_crossnext.py --device x4c
+
+      - name: Validate and assemble the public release assets
         env:
-          PIO_ENV: ${{ matrix.pio_env }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, shutil, struct
+          from pathlib import Path
+          version = os.environ['VERSION']
+          stem = f'CrossNext-X4C-Firmware-v{version}'
+          source = Path('dist/CrossNext')
+          app = (source / f'{stem}.bin').read_bytes()
+          if (len(app) < 80 or app[0] != 0xE9 or struct.unpack_from('<H', app, 12)[0] != 9
+                  or app[2] != 2 or app[3] != 0x4F or app[14] != 0
+                  or struct.unpack_from('<H', app, 15)[0] != 0):
+              raise SystemExit('Expected ESP32-S3 DIO/16MB/80MHz, minimum revision 0 image')
+          if struct.unpack_from('<I', app, 32)[0] != 0xABCD5432 or app[48:80].split(b'\0', 1)[0].decode() != version:
+              raise SystemExit('Application descriptor version does not match the release')
+          if len(app) > 8257536:
+              raise SystemExit('Application exceeds the known Classic installed app-slot size')
+          markers = [b'Wifi' + b'Diagnostics', b'wifi' + b'diagnostics', b'CROSSNEXT_WIFI_' + b'DIAGNOSTICS',
+                     b'x4c_wifi_' + b'diagnostics', b'classic-wifi-' + b'diagnostic']
+          if any(marker in app for marker in markers):
+              raise SystemExit('Private diagnostic marker in public firmware')
+          manifest = json.loads((source / 'manifest.json').read_text())
+          if len(manifest) != 2 or any(item.get('board') != 'x4c' or item.get('environment') != 'gh_release_x4c'
+                                       for item in manifest):
+              raise SystemExit('Expected only current Classic release application/factory entries')
+          assets = Path('release-assets')
+          assets.mkdir()
+          for name in [f'{stem}.bin', f'{stem}-factory.bin', 'manifest.json', 'README.txt']:
+              shutil.copy2(source / name, assets / name)
+          shutil.copy2(Path('dist') / f'{stem}.zip', assets / f'{stem}.zip')
+          for name in ['LICENSE', 'THIRD-PARTY-NOTICES.md']:
+              shutil.copy2(name, assets / name)
+          provenance = dict(source_commit=os.environ['EXPECTED_COMMIT'], tag=os.environ['RELEASE_TAG'],
+                            version=version, board='x4c', chip='esp32s3', environment='gh_release_x4c',
+                            flash_mode='dio', flash_mb=16, flash_mhz=80, minimum_revision=0,
+                            known_installed_app_slot_bytes=8257536,
+                            factory_layout_matches_installed_reader='not established',
+                            hardware_validation='not performed', images=manifest)
+          (assets / 'release-provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+          checksums = ''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
+                              for path in sorted(assets.iterdir()))
+          (assets / f'SHA256SUMS-{os.environ["RELEASE_TAG"]}.txt').write_text(checksums)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classic-release-${{ github.sha }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    if: github.repository == 'achappell/CrossNext-X4-Classic'
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: classic-release-${{ github.sha }}
+          path: release-assets
+
+      - name: Publish the new Classic release without replacing existing assets
+        working-directory: release-assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          VERSION: ${{ needs.build-release.outputs.version }}
         run: |
           set -euo pipefail
-          # Envs with custom_sdkconfig run a nested `pio run` from
-          # ~/.platformio/penv. Keep that core on the same version as the outer core.
-          # See https://github.com/pioarduino/platform-espressif32/issues/529
-          pio pkg install -e "$PIO_ENV"
-          uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
-          ~/.platformio/penv/bin/pio --version
+          sha256sum --check "SHA256SUMS-${RELEASE_TAG}.txt"
+          cat > release-notes.txt <<EOF
+          Xteink X4 Classic port of upstream CrossNext ${VERSION}.
 
-      - name: Build CrossPoint
-        run: pio run -e ${{ matrix.pio_env }} -j1
+          Source commit: ${EXPECTED_COMMIT}. This release is for the ESP32-S3 X4 Classic only, NOT the ESP32-C3 X4/X3 or X4 Pro.
+          Preserves Classic physical navigation and ordinary WiFi; private instrumentation is excluded.
 
-      - name: Name release asset
-        run: |
-          if [ "${{ matrix.asset }}" != "firmware.bin" ]; then
-            cp ".pio/build/${{ matrix.pio_env }}/firmware.bin" \
-              ".pio/build/${{ matrix.pio_env }}/${{ matrix.asset }}"
-          fi
+          Application: CrossNext-X4C-Firmware-v${VERSION}.bin, for a compatible Classic microSD updater.
+          Factory: CrossNext-X4C-Firmware-v${VERSION}-factory.bin, a complete bootloader/partition/application image, NOT an application update.
+          Factory USB installation requires separate device identity, USB-lock, backup and recovery checks. Generated layout is not proof of compatibility with an installed reader's partition table.
+          These are software-validated artifacts, not a claim of physical-device validation. No flashing, erasure or reader installation is performed by this release.
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: |
-            .pio/build/${{ matrix.pio_env }}/bootloader.bin
-            .pio/build/${{ matrix.pio_env }}/${{ matrix.asset }}
-            .pio/build/${{ matrix.pio_env }}/firmware.elf
-            .pio/build/${{ matrix.pio_env }}/firmware.map
-            .pio/build/${{ matrix.pio_env }}/partitions.bin
+          Verify SHA256SUMS-${RELEASE_TAG}.txt and release-provenance.json. The model ZIP includes the images, checksums, installation notes and licenses.
+          Preserve books, saves and .crosspoint data. Existing upstream 1.4.0 resources remain compatible; no resource changes are included here.
+          Upstream changes: https://github.com/manuelx900/CrossNext/releases/tag/1.4.0
+          EOF
+          gh release create "$RELEASE_TAG" --verify-tag --target "$EXPECTED_COMMIT" \
+            --title "CrossNext ${VERSION} — X4 Classic" --notes-file release-notes.txt \
+            "CrossNext-X4C-Firmware-v${VERSION}.bin" "CrossNext-X4C-Firmware-v${VERSION}-factory.bin" \
+            "CrossNext-X4C-Firmware-v${VERSION}.zip" "SHA256SUMS-${RELEASE_TAG}.txt" \
+            manifest.json release-provenance.json README.txt LICENSE THIRD-PARTY-NOTICES.md

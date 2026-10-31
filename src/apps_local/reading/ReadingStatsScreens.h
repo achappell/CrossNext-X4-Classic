@@ -26,7 +26,11 @@ enum : freeink::ui::ActionId {
   ImportHistory,
   ImportStart,
   ImportDone,
-  ImportSetup
+  ImportSetup,
+  GoalChoose,
+  GoalCalendar,
+  GoalMonth,
+  GoalBack
 };
 struct Model {
   const readingstats::Summary* summary = nullptr;
@@ -43,10 +47,14 @@ struct Model {
   bool charging = false, showPercent = true;
   bool loading = false, failed = false, damaged = false;
   bool bookOnly = false;
+  unsigned goalMinutes = 0;
+  bool goalCalendarVisible = false;
   bool pickerVisible = false, periodFromPicker = false;
   int pickerYear = 2026;
   readingstats::Source source = readingstats::Source::Local;
   const uint8_t* importedActive = nullptr;
+  // Borrowed numeric-availability mask, not a claim of complete daily coverage.
+  const uint8_t* importedKnown = nullptr;
   int importedAnchor = 0;
   bool importedAvailable = false, dailyKnown = true, syncAvailable = false;
 };

@@ -43,7 +43,7 @@ Compile-time gating used to be the answer to "an unauthenticated LAN endpoint
 that replaces firmware". Once any user can switch it on, three things replace
 that argument.
 
-**It is off by default**, asserted by `host-tests/release`.
+**It is off by default.**
 
 **Pairing.** The device shows six digits from the hardware RNG; `POST
 /api/dev/pair` exchanges them for a 32-hex token, and every other `/api/dev/`
@@ -145,8 +145,7 @@ unauthenticated, from anyone on the LAN. Registering the route as `HTTP_PUT`
 makes `canUpload()` structurally unreachable, because it requires `HTTP_POST`.
 One code path instead of two to tell apart and get wrong.
 
-That reboot shipped twice before it was understood. `host-tests/release`
-asserts the method so it cannot come back quietly.
+That reboot shipped twice before it was understood.
 
 ## Crash retrieval
 
@@ -373,12 +372,7 @@ that reads it as ownership will miss every non-associating user of the radio.
   them.
 - **The radio is still not arbitrated,** but the two places that take it
   outright now say so. Developer Mode will not take a radio already in use, only
-  puts down a connection it raised, and `host-tests/release` checks 10 to 13
-  discover -- rather than list -- the files that put the radio out of service
-  and the files that yield. 13 tests the comment scanner those checks depend on,
-  and named canaries assert that specific files are still being discovered:
-  three times on that branch a check quietly stopped examining files and went on
-  reporting green, and the only tell was the check count.
+  puts down a connection it raised.
 
   **One file is still outside that net,** and note the checks would not catch it
   either -- see below. `StudyActivity` tears the radio down twice: `onExit` does
