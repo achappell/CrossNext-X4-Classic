@@ -44,11 +44,11 @@ software checks, commit the exact reviewed tree and fast-forward public main.
 Create a new tag such as `v1.4.0-x4-classic` at that full reviewed commit; never
 reuse upstream's `1.4.0` tag or overwrite an existing release.
 
-Dispatch on that tag, substituting the full reviewed SHA:
+Dispatch the workflow on main, substituting the full reviewed source SHA:
 
 ```sh
 gh workflow run release.yml --repo achappell/CrossNext-X4-Classic \
-  --ref v1.4.0-x4-classic -f tag=v1.4.0-x4-classic -f expected_commit=REVIEWED_FULL_SHA
+  --ref main -f tag=v1.4.0-x4-classic -f expected_commit=REVIEWED_FULL_SHA
 ```
 
 The workflow refuses a mismatched tag/SHA/version or diagnostic source, builds
@@ -56,6 +56,9 @@ only `gh_release_x4c`, and runs the existing Classic packager. It publishes raw
 application and clearly named factory images, the model ZIP, checksums, license
 notices, input manifest and `release-provenance.json`. No new secrets are needed;
 only the publishing job grants the repository token `contents: write`.
+The checkout is pinned to that source SHA, which must equal the tag's commit.
+Workflow-only repairs on main do not move the source tag; provenance records
+the source and workflow commits separately.
 
 Download the actual public assets after success. Check `SHA256SUMS-v1.4.0-x4-classic.txt`,
 the application board/version/header and provenance commit, not merely job status.

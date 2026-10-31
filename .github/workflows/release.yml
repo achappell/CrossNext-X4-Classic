@@ -1,6 +1,6 @@
 name: Release X4 Classic
 
-# Dispatch on the reviewed, already-pushed tag, never on moving main.
+# Dispatch the workflow on main; build only the reviewed, already-pushed tag's commit.
 on:
   workflow_dispatch:
     inputs:
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.expected_commit }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -52,8 +52,8 @@ jobs:
               raise SystemExit('expected_commit must be the full reviewed commit SHA')
           head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           tagged = subprocess.check_output(['git', 'rev-parse', f'refs/tags/{tag}^{{commit}}'], text=True).strip()
-          if head != expected or tagged != expected or os.environ['GITHUB_REF'] != f'refs/tags/{tag}':
-              raise SystemExit('Dispatch must run on the tag at exactly the reviewed commit')
+          if head != expected or tagged != expected or os.environ['GITHUB_REF'] != 'refs/heads/main':
+              raise SystemExit('Dispatch on main with the tag and checkout at exactly the reviewed commit')
           if tag != f'v{version}-x4-classic':
               raise SystemExit('Tag must match the firmware version and Classic suffix')
           if config['env:gh_release_x4c']['extends'] != 'x4c_common':
@@ -121,8 +121,10 @@ jobs:
                   or app[2] != 2 or app[3] != 0x4F or app[14] != 0
                   or struct.unpack_from('<H', app, 15)[0] != 0):
               raise SystemExit('Expected ESP32-S3 DIO/16MB/80MHz, minimum revision 0 image')
-          if struct.unpack_from('<I', app, 32)[0] != 0xABCD5432 or app[48:80].split(b'\0', 1)[0].decode() != version:
-              raise SystemExit('Application descriptor version does not match the release')
+          if struct.unpack_from('<I', app, 32)[0] != 0xABCD5432:
+              raise SystemExit('Invalid application descriptor')
+          if b'CrossNext-ESP32-' + version.encode() + b'\0' not in app:
+              raise SystemExit('CrossNext runtime version does not match the release')
           if len(app) > 8257536:
               raise SystemExit('Application exceeds the known Classic installed app-slot size')
           markers = [b'Wifi' + b'Diagnostics', b'wifi' + b'diagnostics', b'CROSSNEXT_WIFI_' + b'DIAGNOSTICS',
@@ -140,7 +142,8 @@ jobs:
           shutil.copy2(Path('dist') / f'{stem}.zip', assets / f'{stem}.zip')
           for name in ['LICENSE', 'THIRD-PARTY-NOTICES.md']:
               shutil.copy2(name, assets / name)
-          provenance = dict(source_commit=os.environ['EXPECTED_COMMIT'], tag=os.environ['RELEASE_TAG'],
+          provenance = dict(source_commit=os.environ['EXPECTED_COMMIT'], workflow_commit=os.environ['GITHUB_SHA'],
+                            tag=os.environ['RELEASE_TAG'],
                             version=version, board='x4c', chip='esp32s3', environment='gh_release_x4c',
                             flash_mode='dio', flash_mb=16, flash_mhz=80, minimum_revision=0,
                             known_installed_app_slot_bytes=8257536,
@@ -154,7 +157,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: classic-release-${{ github.sha }}
+          name: classic-release-workflow-${{ github.sha }}
           path: release-assets/
           if-no-files-found: error
           retention-days: 7
@@ -168,7 +171,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: classic-release-${{ github.sha }}
+          name: classic-release-workflow-${{ github.sha }}
           path: release-assets
 
       - name: Publish the new Classic release without replacing existing assets
