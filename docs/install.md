@@ -60,6 +60,10 @@ The checkout is pinned to that source SHA, which must equal the tag's commit.
 Workflow-only repairs on main do not move the source tag; provenance records
 the source and workflow commits separately.
 
+For an existing tag, `--verify-tag` is sufficient; omit `--target`. Pointing at
+an older source commit when main has a workflow-only repair makes GitHub require
+the Workflows permission, which the publishing `GITHUB_TOKEN` cannot receive.
+
 Download the actual public assets after success. Check `SHA256SUMS-v1.4.0-x4-classic.txt`,
 the application board/version/header and provenance commit, not merely job status.
 Existing upstream 1.4.0 resources remain compatible; this release does not replace

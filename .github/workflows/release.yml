@@ -200,7 +200,7 @@ jobs:
           Preserve books, saves and .crosspoint data. Existing upstream 1.4.0 resources remain compatible; no resource changes are included here.
           Upstream changes: https://github.com/manuelx900/CrossNext/releases/tag/1.4.0
           EOF
-          gh release create "$RELEASE_TAG" --verify-tag --target "$EXPECTED_COMMIT" \
+          gh release create "$RELEASE_TAG" --verify-tag \
             --title "CrossNext ${VERSION} — X4 Classic" --notes-file release-notes.txt \
             "CrossNext-X4C-Firmware-v${VERSION}.bin" "CrossNext-X4C-Firmware-v${VERSION}-factory.bin" \
             "CrossNext-X4C-Firmware-v${VERSION}.zip" "SHA256SUMS-${RELEASE_TAG}.txt" \
